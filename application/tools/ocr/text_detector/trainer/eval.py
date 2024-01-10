@@ -1,25 +1,20 @@
 # -*- coding: utf-8 -*-
 
-import argparse
 import os
 
 import cv2
-import numpy as np
 import torch
-import torch.backends.cudnn as cudnn
-from tqdm import tqdm
 import wandb
+import argparse
+import numpy as np
+from tqdm import tqdm
+import torch.backends.cudnn as cudnn
 
-from config.load_config import load_yaml, DotDict
-from model.craft import CRAFT
-from metrics.eval_det_iou import DetectionIoUEvaluator
-from utils.inference_boxes import (
-    test_net,
-    load_icdar2015_gt,
-    load_icdar2013_gt,
-    load_synthtext_gt,
-)
-from utils.util import copyStateDict
+from trainer.model.craft import CRAFT
+from trainer.utils.util import copyStateDict
+from trainer.config.load_config import load_yaml, DotDict
+from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
+from trainer.utils.inference_boxes import (test_net, load_custom_data, load_synthtext_gt)
 
 
 
@@ -180,20 +175,8 @@ def load_test_dataset_iou(test_folder_name, config):
     if test_folder_name == "synthtext":
         total_bboxes_gt, total_img_path = load_synthtext_gt(config.test_data_dir)
 
-    elif test_folder_name == "icdar2013":
-        total_bboxes_gt, total_img_path = load_icdar2013_gt(
-            dataFolder=config.test_data_dir
-        )
-
-    elif test_folder_name == "icdar2015":
-        total_bboxes_gt, total_img_path = load_icdar2015_gt(
-            dataFolder=config.test_data_dir
-        )
-
     elif test_folder_name == "custom_data":
-        total_bboxes_gt, total_img_path = load_icdar2015_gt(
-            dataFolder=config.test_data_dir
-        )
+        total_bboxes_gt, total_img_path = load_custom_data(dataFolder=config.test_data_dir)
 
     else:
         print("not found test dataset")
@@ -208,16 +191,8 @@ def viz_test(img, pre_output, pre_box, gt_box, img_name, result_dir, test_folder
         save_result_synth(
             img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
         )
-    elif test_folder_name == "icdar2013":
-        save_result_2013(
-            img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
-        )
-    elif test_folder_name == "icdar2015":
-        save_result_2015(
-            img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
-        )
     elif test_folder_name == "custom_data":
-        save_result_2015(
+        load_custom_data(
             img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
         )
     else:

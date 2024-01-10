@@ -30,7 +30,6 @@ class PseudoCharBoxBuilder:
             word_ratio = h / w
         except:
             import ipdb
-
             ipdb.set_trace()
 
         one_char_ratio = min(h, w) / (max(h, w) / len(word))

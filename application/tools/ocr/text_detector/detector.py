@@ -1,23 +1,13 @@
+import cv2
 import torch
-from collections import OrderedDict
+import numpy as np
 import torch.backends.cudnn as cudnn
 
-import cv2
-import numpy as np
-from .craft_utils import getDetBoxes, adjustResultCoordinates
-from .imgproc import resize_aspect_ratio, normalizeMeanVariance
-from .craft import CRAFT
+from trainer.model.craft import CRAFT
+from trainer.utils.util import copyStateDict
+from utils.imgproc import resize_aspect_ratio, normalizeMeanVariance
+from trainer.utils.craft_utils import getDetBoxes, adjustResultCoordinates
 
-def copyStateDict(state_dict):
-    if list(state_dict.keys())[0].startswith("module"):
-        start_idx = 1
-    else:
-        start_idx = 0
-    new_state_dict = OrderedDict()
-    for k, v in state_dict.items():
-        name = ".".join(k.split(".")[start_idx:])
-        new_state_dict[name] = v
-    return new_state_dict
 
 def test_net(canvas_size, mag_ratio, net, image, text_threshold, link_threshold, low_text, poly, device, estimate_num_chars=False):
     if isinstance(image, np.ndarray) and len(image.shape) == 4:  # image is batch of np arrays
@@ -107,6 +97,5 @@ def get_textbox(detector, image, canvas_size, mag_ratio, text_threshold, link_th
 
     return result
 
-
-def initDetector(self, detector_path):
-    return self.get_detector(detector_path)
+def initDetector(detector_path):
+    return get_detector(detector_path)

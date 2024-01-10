@@ -4,8 +4,8 @@ import os
 import cv2
 import numpy as np
 
-from data import imgproc
-from utils import craft_utils
+from trainer.utils import craft_utils
+from trainer.utils.imgproc import cvt2HeatmapImg
 
 
 def copyStateDict(state_dict):
@@ -40,9 +40,9 @@ def saveInput(
         np.clip(boxes[:, :, 1], 0, image.shape[0])
         for box in boxes:
             cv2.polylines(image, [np.reshape(box, (-1, 1, 2))], True, (0, 0, 255))
-    target_gaussian_heatmap_color = imgproc.cvt2HeatmapImg(region_scores)
-    target_gaussian_affinity_heatmap_color = imgproc.cvt2HeatmapImg(affinity_scores)
-    confidence_mask_gray = imgproc.cvt2HeatmapImg(confidence_mask)
+    target_gaussian_heatmap_color = cvt2HeatmapImg(region_scores)
+    target_gaussian_affinity_heatmap_color = cvt2HeatmapImg(affinity_scores)
+    confidence_mask_gray = cvt2HeatmapImg(confidence_mask)
 
     # overlay
     height, width, channel = image.shape
@@ -102,9 +102,9 @@ def saveImage(
                 (255, 0, 0),
             )
 
-    target_gaussian_heatmap_color = imgproc.cvt2HeatmapImg(region_scores)
-    target_gaussian_affinity_heatmap_color = imgproc.cvt2HeatmapImg(affinity_scores)
-    confidence_mask_gray = imgproc.cvt2HeatmapImg(confidence_mask)
+    target_gaussian_heatmap_color = cvt2HeatmapImg(region_scores)
+    target_gaussian_affinity_heatmap_color = cvt2HeatmapImg(affinity_scores)
+    confidence_mask_gray = cvt2HeatmapImg(confidence_mask)
 
     # overlay
     height, width, channel = image.shape

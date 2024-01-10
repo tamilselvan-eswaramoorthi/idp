@@ -1,18 +1,17 @@
 import os
 import re
-import itertools
+import cv2
 import random
+import itertools
 
 import numpy as np
-import scipy.io as scio
 from PIL import Image
-import cv2
+import scipy.io as scio
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-from data import imgproc
-from data.gaussian import GaussianBuilder
-from data.imgaug import (
+from trainer.data.gaussian import GaussianBuilder
+from trainer.data.imgaug import (
     rescale,
     random_resize_crop_synth,
     random_resize_crop,
@@ -21,9 +20,9 @@ from data.imgaug import (
     random_scale,
     random_crop,
 )
-from data.pseudo_label.make_charbox import PseudoCharBoxBuilder
-from utils.util import saveInput, saveImage
-
+from trainer.data.pseudo_label.make_charbox import PseudoCharBoxBuilder
+from trainer.utils.util import saveInput, saveImage
+from utils.imgproc import normalizeMeanVariance
 
 class CraftBaseDataset(Dataset):
     def __init__(
@@ -75,11 +74,7 @@ class CraftBaseDataset(Dataset):
             )
 
         if self.aug.random_crop.option:
-            if self.aug.random_crop.version == "random_crop_with_bbox":
-                augment_targets = random_crop_with_bbox(
-                    augment_targets, word_level_char_bbox, self.output_size
-                )
-            elif self.aug.random_crop.version == "random_resize_crop_synth":
+            if self.aug.random_crop.version == "random_resize_crop_synth":
                 augment_targets = random_resize_crop_synth(
                     augment_targets, self.output_size
                 )
@@ -193,7 +188,7 @@ class CraftBaseDataset(Dataset):
             confidence_mask, interpolation=cv2.INTER_NEAREST
         )
 
-        image = imgproc.normalizeMeanVariance(
+        image = normalizeMeanVariance(
             np.array(image), mean=self.mean, variance=self.variance
         )
         image = image.transpose(2, 0, 1)
