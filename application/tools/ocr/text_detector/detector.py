@@ -5,8 +5,8 @@ import torch.backends.cudnn as cudnn
 
 from trainer.model.craft import CRAFT
 from trainer.utils.util import copyStateDict
-from utils.imgproc import resize_aspect_ratio, normalizeMeanVariance
-from trainer.utils.craft_utils import getDetBoxes, adjustResultCoordinates
+from utils.imgproc import cvt2HeatmapImg, resize_aspect_ratio, normalizeMeanVariance, loadImage
+from trainer.utils.util import getDetBoxes, adjustResultCoordinates
 
 
 def test_net(canvas_size, mag_ratio, net, image, text_threshold, link_threshold, low_text, poly, device, estimate_num_chars=False):
@@ -40,8 +40,7 @@ def test_net(canvas_size, mag_ratio, net, image, text_threshold, link_threshold,
         score_link = out[:, :, 1].cpu().data.numpy()
 
         # Post-processing
-        boxes, polys, mapper = getDetBoxes(
-            score_text, score_link, text_threshold, link_threshold, low_text, poly, estimate_num_chars)
+        boxes, polys = getDetBoxes(score_text, score_link, text_threshold, link_threshold, low_text, poly)
 
         # coordinate adjustment
         boxes = adjustResultCoordinates(boxes, ratio_w, ratio_h)
@@ -50,14 +49,15 @@ def test_net(canvas_size, mag_ratio, net, image, text_threshold, link_threshold,
             boxes = list(boxes)
             polys = list(polys)
         for k in range(len(polys)):
-            if estimate_num_chars:
-                boxes[k] = (boxes[k], mapper[k])
-            if polys[k] is None:
-                polys[k] = boxes[k]
+            if polys[k] is None: polys[k] = boxes[k]
         boxes_list.append(boxes)
         polys_list.append(polys)
 
-    return boxes_list, polys_list
+    render_img = score_text.copy()
+    render_img = np.hstack((render_img, score_link))
+    ret_score_text = cvt2HeatmapImg(render_img)
+
+    return boxes_list, polys_list, ret_score_text
 
 def get_detector(trained_model, device='cpu', quantize=True, cudnn_benchmark=False):
     net = CRAFT()
@@ -77,13 +77,16 @@ def get_detector(trained_model, device='cpu', quantize=True, cudnn_benchmark=Fal
     net.eval()
     return net
 
-def get_textbox(detector, image, canvas_size, mag_ratio, text_threshold, link_threshold, low_text, poly, device, optimal_num_chars=None, **kwargs):
+def get_textbox(detector, image, canvas_size=1280, mag_ratio=1.5, text_threshold=0.7, link_threshold=0.4, low_text=0.4, poly=False, device='cpu', optimal_num_chars=None, **kwargs):
     result = []
     estimate_num_chars = optimal_num_chars is not None
-    bboxes_list, polys_list = test_net(canvas_size, mag_ratio, detector,
+    bboxes_list, polys_list, score_text = test_net(canvas_size, mag_ratio, detector,
                                        image, text_threshold,
                                        link_threshold, low_text, poly,
                                        device, estimate_num_chars)
+
+    cv2.imwrite('temp.jpg', score_text)
+
     if estimate_num_chars:
         polys_list = [[p for p, _ in sorted(polys, key=lambda x: abs(optimal_num_chars - x[1]))]
                       for polys in polys_list]
@@ -99,3 +102,9 @@ def get_textbox(detector, image, canvas_size, mag_ratio, text_threshold, link_th
 
 def initDetector(detector_path):
     return get_detector(detector_path)
+
+if __name__ == "__main__":
+    model = initDetector("weights/craft_mlt_25k.pth")
+    image = loadImage('sample.png')
+    result = get_textbox(model, image)
+    print (result)

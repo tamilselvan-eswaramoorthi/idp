@@ -8,8 +8,8 @@ import numpy as np
 import torch
 from torch.autograd import Variable
 
-from utils.craft_utils import getDetBoxes, adjustResultCoordinates
-from data import imgproc
+from trainer.utils.util import getDetBoxes, adjustResultCoordinates
+from utils import imgproc
 from data.dataset import SynthTextDataSet
 import math
 import xml.etree.ElementTree as elemTree
