@@ -3,10 +3,11 @@ import torch
 import numpy as np
 import torch.backends.cudnn as cudnn
 
-from trainer.model.craft import CRAFT
-from trainer.utils.util import copyStateDict
+from model import CRAFT
+from utils.getboxes import getDetBoxes
+from utils.grouper import group_text_box
+from utils.general import diff, copyStateDict, adjustResultCoordinates, draw_detections
 from utils.imgproc import cvt2HeatmapImg, resize_aspect_ratio, normalizeMeanVariance, loadImage
-from trainer.utils.util import getDetBoxes, adjustResultCoordinates
 
 
 def test_net(canvas_size, mag_ratio, net, image, text_threshold, link_threshold, low_text, poly, device, estimate_num_chars=False):
@@ -77,15 +78,15 @@ def get_detector(trained_model, device='cpu', quantize=True, cudnn_benchmark=Fal
     net.eval()
     return net
 
-def get_textbox(detector, image, canvas_size=1280, mag_ratio=1.5, text_threshold=0.7, link_threshold=0.4, low_text=0.4, poly=False, device='cpu', optimal_num_chars=None, **kwargs):
-    result = []
+def get_textbox(detector, image, min_size = 20, canvas_size=1280, mag_ratio=1.5, text_threshold=0.7, link_threshold=0.4, low_text=0.4, poly=False, device='cpu', optimal_num_chars=None, **kwargs):
+    text_box_list = []
     estimate_num_chars = optimal_num_chars is not None
     bboxes_list, polys_list, score_text = test_net(canvas_size, mag_ratio, detector,
                                        image, text_threshold,
                                        link_threshold, low_text, poly,
                                        device, estimate_num_chars)
 
-    cv2.imwrite('temp.jpg', score_text)
+    # cv2.imwrite('temp.png', score_text)
 
     if estimate_num_chars:
         polys_list = [[p for p, _ in sorted(polys, key=lambda x: abs(optimal_num_chars - x[1]))]
@@ -96,9 +97,21 @@ def get_textbox(detector, image, canvas_size=1280, mag_ratio=1.5, text_threshold
         for i, box in enumerate(polys):
             poly = np.array(box).astype(np.int32).reshape((-1))
             single_img_result.append(poly)
-        result.append(single_img_result)
+        text_box_list.append(single_img_result)
 
-    return result
+    horizontal_list_agg, free_list_agg = [], []
+    for text_box in text_box_list:
+        horizontal_list, free_list = group_text_box(text_box, sort_output = (optimal_num_chars is None))
+        if min_size:
+            horizontal_list = [i for i in horizontal_list if max(
+                i[1] - i[0], i[3] - i[2]) > min_size]
+            free_list = [i for i in free_list if max(
+                diff([c[0] for c in i]), diff([c[1] for c in i])) > min_size]
+        horizontal_list_agg.append(horizontal_list)
+        free_list_agg.append(free_list)
+
+
+    return horizontal_list_agg, free_list_agg
 
 def initDetector(detector_path):
     return get_detector(detector_path)
@@ -106,5 +119,6 @@ def initDetector(detector_path):
 if __name__ == "__main__":
     model = initDetector("weights/craft_mlt_25k.pth")
     image = loadImage('sample.png')
-    result = get_textbox(model, image)
-    print (result)
+    horizontal_list_agg, free_list_agg = get_textbox(model, image)
+    results = draw_detections([image], horizontal_list_agg, free_list_agg)
+    cv2.imwrite('temp.png', results[0])

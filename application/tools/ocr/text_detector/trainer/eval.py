@@ -10,8 +10,8 @@ import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
 
-from trainer.model.craft import CRAFT
-from trainer.utils.util import copyStateDict
+from model import CRAFT
+from utils.general import copyStateDict
 from trainer.config.load_config import load_yaml, DotDict
 from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
 from trainer.utils.inference_boxes import (test_net, load_custom_data, load_synthtext_gt)

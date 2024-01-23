@@ -9,13 +9,14 @@ import shutil
 import numpy as np
 import torch.optim as optim
 
+from model import CRAFT
+
 from trainer.config.load_config import load_yaml, DotDict
 from trainer.data.dataset import SynthTextDataSet, CustomDataset
 from trainer.loss.mseloss import Maploss_v2, Maploss_v3
-from trainer.model.craft import CRAFT
 from trainer.eval import main_eval
 from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
-from trainer.utils.util import copyStateDict
+from utils.general import copyStateDict
 
 
 class Trainer(object):
