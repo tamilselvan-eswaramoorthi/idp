@@ -1,4 +1,5 @@
 application/tools/ocr/text_detector/weights/*
+application/tools/ocr/text_recognizer/weights/*
 application/tools/ocr/text_detector/*.png
 __pycache__/
 *.py[cod]
