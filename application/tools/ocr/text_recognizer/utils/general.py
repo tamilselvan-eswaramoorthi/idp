@@ -1,17 +1,27 @@
 import yaml
 import torch
 import numpy as np
+from PIL import Image
+
+class ListDataset(torch.utils.data.Dataset):
+
+    def __init__(self, image_list):
+        self.image_list = image_list
+        self.nSamples = len(image_list)
+
+    def __len__(self):
+        return self.nSamples
+
+    def __getitem__(self, index):
+        img = self.image_list[index]
+        return Image.fromarray(img, 'L')
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
         super(AttrDict, self).__init__(*args, **kwargs)
         self.__dict__ = self
 
-def get_config(file_path):
-    with open(file_path, 'r', encoding="utf8") as stream:
-        opt = yaml.safe_load(stream)
-    opt = AttrDict(opt)
-    return opt
+
 
 def consecutive(data, mode ='first', stepsize=1):
     group = np.split(data, np.where(np.diff(data) != stepsize)[0]+1)
