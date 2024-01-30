@@ -13,9 +13,20 @@ from .utils.collate import AlignCollate
 from .utils.general import AttrDict, CTCLabelConverter, ListDataset
 
 class Recognizer:
-    def __init__(self, model_path, config_path, workers = 1, decoder = 'greedy', beamWidth = 5) -> None:
+    def __init__(self, recognizer_path, workers = 1, decoder = 'greedy', beamWidth = 5) -> None:
         self.device = 'cpu'
         self.quantize = True
+        model_path = ''
+        for model_name in os.listdir(recognizer_path):
+            if model_name.endswith('.pth'):
+                print (model_name)
+                model_path = os.path.join(recognizer_path, model_name)
+        if not os.path.exists(model_path):
+            raise FileNotFoundError("model not found")
+        config_path = os.path.join(recognizer_path, model_name.replace('.pth', '.yaml'))
+        if not os.path.exists(config_path):
+            raise FileNotFoundError("config yaml not found")
+
         self.get_recognizer(model_path, config_path)
         self.model.eval()
         self.decoder = decoder
@@ -31,7 +42,6 @@ class Recognizer:
                 # For max length prediction
                 length_for_pred = torch.IntTensor([batch_max_length] * batch_size).to(self.device)
                 text_for_pred = torch.LongTensor(batch_size, batch_max_length + 1).fill_(0).to(self.device)
-                print (image.shape)
 
                 preds = self.model(image, text_for_pred)
 
@@ -51,7 +61,6 @@ class Recognizer:
                     _, preds_index = preds_prob.max(2)
                     preds_index = preds_index.view(-1)
                     preds_str = self.converter.decode_greedy(preds_index.data.cpu().detach().numpy(), preds_size.data)
-                    print (preds_str)
                 elif self.decoder == 'beamsearch':
                     k = preds_prob.cpu().detach().numpy()
                     preds_str = self.converter.decode_beamsearch(k, beamWidth=self.beamWidth)
@@ -84,9 +93,8 @@ class Recognizer:
             opt = yaml.safe_load(stream)
         opt = AttrDict(opt)
 
-        character = opt.lang_char
+        character = opt.number + opt.symbol + opt.lang_char
         self.imgH = opt.imgH
-        print (self.imgH)
 
         self.converter = CTCLabelConverter(character, separator_list, dict_list)
         num_class = len(self.converter.character)

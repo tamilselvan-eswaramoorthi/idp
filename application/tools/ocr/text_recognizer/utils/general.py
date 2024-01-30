@@ -105,12 +105,10 @@ class BeamState:
 
             if j == 0: best_text = text
             if text in dict_list:
-                #print('found text: ', text)
                 best_text = text
                 break
             else:
                 pass
-                #print('not in dict: ', text)
         return best_text
 
 def applyLM(parentBeam, childBeam, classes, lm):
