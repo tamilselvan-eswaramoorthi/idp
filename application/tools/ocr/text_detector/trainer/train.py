@@ -1,12 +1,7 @@
-# -*- coding: utf-8 -*-
-import argparse
 import os
 import time
-import yaml
+import glob
 import torch
-import wandb
-import shutil
-import numpy as np
 import torch.optim as optim
 
 from model import CRAFT
@@ -14,18 +9,21 @@ from model import CRAFT
 from trainer.config.load_config import load_yaml, DotDict
 from trainer.data.dataset import SynthTextDataSet, CustomDataset
 from trainer.loss.mseloss import Maploss_v2, Maploss_v3
-from trainer.eval import main_eval
 from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
+
+from trainer.eval import main_eval
 from utils.general import copyStateDict
 
 
 class Trainer(object):
-    def __init__(self, config, gpu, mode):
-
+    def __init__(self, config, device, mode):
+        self.device = device
         self.config = config
-        self.gpu = gpu
         self.mode = mode
-        self.net_param = self.get_load_param(gpu)
+        if self.config.train.ckpt_path is not None:
+            self.net_param = torch.load(self.config.train.ckpt_path, map_location=self.device)
+        else:
+            self.net_param = None
 
     def get_synth_loader(self):
 
@@ -78,16 +76,6 @@ class Trainer(object):
 
         return custom_dataset
 
-    def get_load_param(self, gpu):
-
-        if self.config.train.ckpt_path is not None:
-            map_location = "cuda:%d" % gpu
-            param = torch.load(self.config.train.ckpt_path, map_location=map_location)
-        else:
-            param = None
-
-        return param
-
     def adjust_learning_rate(self, optimizer, gamma, step, lr):
         lr = lr * (gamma ** step)
         for param_group in optimizer.param_groups:
@@ -122,20 +110,11 @@ class Trainer(object):
             model,
             self.mode,
         )
-        if self.gpu == 0 and self.config.wandb_opt:
-            wandb.log(
-                {
-                    "{} iou Recall".format(dataset): np.round(metrics["recall"], 3),
-                    "{} iou Precision".format(dataset): np.round(
-                        metrics["precision"], 3
-                    ),
-                    "{} iou F1-score".format(dataset): np.round(metrics["hmean"], 3),
-                }
-            )
 
     def train(self, buffer_dict):
-
-        torch.cuda.set_device(self.gpu)
+        
+        if self.device != 'cpu':
+            torch.cuda.set_device(int(self.device.replace('cuda:', '')))
 
         # MODEL -------------------------------------------------------------------------------------------------------#
         # SUPERVISION model
@@ -145,13 +124,11 @@ class Trainer(object):
             else:
                 raise Exception("Undefined architecture")
 
-            supervision_device = self.gpu
+            supervision_device = self.device
             if self.config.train.ckpt_path is not None:
-                supervision_param = self.get_load_param(supervision_device)
-                supervision_model.load_state_dict(
-                    copyStateDict(supervision_param["craft"])
-                )
-                supervision_model = supervision_model.to(f"cuda:{supervision_device}")
+                supervision_param = torch.load(self.config.train.ckpt_path, map_location=self.device)
+                supervision_model.load_state_dict(copyStateDict(supervision_param["craft"]))
+                supervision_model = supervision_model.to(self.device)
             print(f"Supervision model loading on : gpu {supervision_device}")
         else:
             supervision_model, supervision_device = None, None
@@ -165,10 +142,10 @@ class Trainer(object):
         if self.config.train.ckpt_path is not None:
             craft.load_state_dict(copyStateDict(self.net_param["craft"]))
 
-        craft = craft.cuda()
-        craft = torch.nn.DataParallel(craft)
-
-        torch.backends.cudnn.benchmark = True
+        if self.device != 'cpu':
+            craft = craft.cuda()
+            craft = torch.nn.DataParallel(craft)
+            torch.backends.cudnn.benchmark = True
 
         # DATASET -----------------------------------------------------------------------------------------------------#
 
@@ -345,9 +322,6 @@ class Trainer(object):
                         )
                     )
 
-                    if self.config.wandb_opt:
-                        wandb.log({"train_step": train_step, "mean_loss": mean_loss})
-
                 if (
                         train_step % self.config.train.eval_interval == 0
                         and train_step != 0
@@ -417,61 +391,30 @@ class Trainer(object):
         torch.save(save_param_dic, save_param_path)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="CRAFT custom data train")
-    parser.add_argument(
-        "--yaml",
-        "--yaml_file_name",
-        default="custom_data_train",
-        type=str,
-        help="Load configuration",
-    )
-    parser.add_argument(
-        "--port", "--use ddp port", default="2346", type=str, help="Port number"
-    )
-
-    args = parser.parse_args()
-
+def train(yaml_path):
     # load configure
-    exp_name = args.yaml
-    config = load_yaml(args.yaml)
-
-    print("-" * 20 + " Options " + "-" * 20)
-    print(yaml.dump(config))
-    print("-" * 40)
+    config = load_yaml(yaml_path)
 
     # Make result_dir
-    res_dir = os.path.join(config["results_dir"], args.yaml)
+    results_root_dir = "exp/"
+    if not os.path.exists(results_root_dir):
+        os.makedirs(results_root_dir)
+    res_dir = sorted([int(fol.split(results_root_dir+'train_')[1]) for fol in glob.glob(results_root_dir + 'train_*')])
+    if not len(res_dir):
+        res_dir = os.path.join(results_root_dir + 'train_1')
+    else:
+        res_dir = results_root_dir + "train_" + str(res_dir[-1]+1)
+    os.mkdir(res_dir)
     config["results_dir"] = res_dir
-    if not os.path.exists(res_dir):
-        os.makedirs(res_dir)
-
-    # Duplicate yaml file to result_dir
-    shutil.copy(
-        "config/" + args.yaml + ".yaml", os.path.join(res_dir, args.yaml) + ".yaml"
-    )
 
     if config["mode"] == "weak_supervision":
         mode = "weak_supervision"
     else:
         mode = None
 
-
-    # Apply config to wandb
-    if config["wandb_opt"]:
-        wandb.init(project="craft-stage2", entity="user_name", name=exp_name)
-        wandb.config.update(config)
-
     config = DotDict(config)
 
-    # Start train
+    # Start train   
     buffer_dict = {"custom_data":None}
-    trainer = Trainer(config, 0, mode)
+    trainer = Trainer(config, 'cpu', mode)
     trainer.train(buffer_dict)
-
-    if config["wandb_opt"]:
-        wandb.finish()
-
-
-if __name__ == "__main__":
-    main()

@@ -4,7 +4,6 @@ import os
 
 import cv2
 import torch
-import wandb
 import argparse
 import numpy as np
 from tqdm import tqdm
@@ -341,10 +340,6 @@ if __name__ == "__main__":
     # load configure
     config = load_yaml(args.yaml)
     config = DotDict(config)
-
-    if config["wandb_opt"]:
-        wandb.init(project="evaluation", entity="gmuffiness", name=args.yaml)
-        wandb.config.update(config)
 
     val_result_dir_name = args.yaml
     cal_eval(

@@ -6,7 +6,7 @@ CONFIG_PATH = os.path.dirname(__file__)
 
 def load_yaml(config_name):
 
-    with open(os.path.join(CONFIG_PATH, config_name)+ '.yaml') as file:
+    with open(os.path.join(config_name)+ '.yaml') as file:
         config = yaml.safe_load(file)
 
     return config

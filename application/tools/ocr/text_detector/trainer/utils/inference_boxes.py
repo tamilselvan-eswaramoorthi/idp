@@ -3,16 +3,19 @@ import re
 import itertools
 
 import cv2
-import time
+import math
 import numpy as np
+
 import torch
 from torch.autograd import Variable
 
-from trainer.utils.util import getDetBoxes, adjustResultCoordinates
 from utils import imgproc
-from data.dataset import SynthTextDataSet
-import math
+from utils.general import adjustResultCoordinates
+
+from trainer.utils.util import getDetBoxes
+from trainer.data.dataset import SynthTextDataSet
 import xml.etree.ElementTree as elemTree
+
 
 
 #-------------------------------------------------------------------------------------------------------------------#

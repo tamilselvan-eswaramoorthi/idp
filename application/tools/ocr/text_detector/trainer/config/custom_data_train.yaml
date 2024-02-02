@@ -1,6 +1,5 @@
 wandb_opt: False
 
-results_dir: "./exp/"
 vis_test_dir: "./vis_result/"
 
 data_root_dir: "./data_root_dir/"
@@ -11,10 +10,10 @@ mode: "weak_supervision"
 train:
   backbone : vgg
   use_synthtext: False # If you want to combine SynthText in train time as CRAFT did, you can turn on this option
-  synth_data_dir: "/data/SynthText/"
+  synth_data_dir: "./SynthText/"
   synth_ratio: 5
   real_dataset: custom
-  ckpt_path: "./pretrained_model/CRAFT_clr_amp_29500.pth"
+  ckpt_path: "weights/CRAFT_clr_amp_29500.pth"
   eval_interval: 1000
   batch_size: 5
   st_iter: 0
