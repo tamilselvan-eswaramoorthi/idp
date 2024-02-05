@@ -129,7 +129,6 @@ class Trainer(object):
                 supervision_param = torch.load(self.config.train.ckpt_path, map_location=self.device)
                 supervision_model.load_state_dict(copyStateDict(supervision_param["craft"]))
                 supervision_model = supervision_model.to(self.device)
-            print(f"Supervision model loading on : gpu {supervision_device}")
         else:
             supervision_model, supervision_device = None, None
 
