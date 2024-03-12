@@ -21,7 +21,6 @@ class Detector:
       self.canvas_size = canvas_size
       self.mag_ratio = mag_ratio
 
-
     def test_net(self, image, text_threshold=0.7, link_threshold=0.4, low_text=0.4, poly=False, estimate_num_chars=False):
         if isinstance(image, np.ndarray) and len(image.shape) == 4:  # image is batch of np arrays
             image_arrs = image
