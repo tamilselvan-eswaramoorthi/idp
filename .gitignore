@@ -4,3 +4,4 @@ __pycache__/
 *.py[cod]
 *$py.class
 application/tools/ocr/sample.png
+application/tools/ocr/work_dir/text_detector/trainer/config/custom_data_train/custom_data_train.yaml

@@ -1,7 +1,7 @@
 wandb_opt: False
 
 vis_test_dir: "./vis_result/"
-
+results_dir: "./work_dir"
 data_root_dir: "./data_root_dir/"
 score_gt_dir: None # "/data/ICDAR2015_official_supervision"
 mode: "weak_supervision"
@@ -13,7 +13,7 @@ train:
   synth_data_dir: "./SynthText/"
   synth_ratio: 5
   real_dataset: custom
-  ckpt_path: "weights/CRAFT_clr_amp_29500.pth"
+  ckpt_path: "text_detector/weights/CRAFT_clr_amp_29500.pth"
   eval_interval: 1000
   batch_size: 5
   st_iter: 0

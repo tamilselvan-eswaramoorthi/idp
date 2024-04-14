@@ -27,7 +27,7 @@ def train():
         os.makedirs(res_dir)
 
     # Duplicate yaml file to result_dir
-    shutil.copy("config/" + yaml_path + ".yaml", os.path.join(res_dir, yaml_path) + ".yaml")
+    shutil.copy(yaml_path + ".yaml", os.path.join(res_dir, os.path.basename(yaml_path)) + ".yaml")
 
     if config["mode"] == "weak_supervision":
         mode = "weak_supervision"
