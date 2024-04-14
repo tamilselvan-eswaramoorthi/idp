@@ -9,11 +9,11 @@ import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
 
-from model import CRAFT
-from utils.general import copyStateDict
-from trainer.config.load_config import load_yaml, DotDict
-from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
-from trainer.utils.inference_boxes import (test_net, load_custom_data, load_synthtext_gt)
+from text_detector.model import CRAFT
+from text_detector.utils.general import copyStateDict
+from text_detector.trainer.config.load_config import load_yaml, DotDict
+from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
+from text_detector.trainer.utils.inference_boxes import (test_net, load_custom_data, load_synthtext_gt)
 
 
 

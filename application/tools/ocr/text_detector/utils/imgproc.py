@@ -14,7 +14,6 @@ def loadImage(img_file):
     if len(img.shape) == 2 : img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     if img.shape[2] == 4:   img = img[:,:,:3]
     img = np.array(img)
-
     return img
 
 def normalizeMeanVariance(in_img, mean=(0.485, 0.456, 0.406), variance=(0.229, 0.224, 0.225)):

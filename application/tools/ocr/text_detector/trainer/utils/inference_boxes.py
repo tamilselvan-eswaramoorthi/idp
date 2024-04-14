@@ -1,20 +1,18 @@
 import os
 import re
-import itertools
-
 import cv2
 import math
+import itertools
 import numpy as np
+import xml.etree.ElementTree as elemTree
 
 import torch
 from torch.autograd import Variable
 
-from utils import imgproc
-from utils.general import adjustResultCoordinates
-
-from trainer.utils.util import getDetBoxes
-from trainer.data.dataset import SynthTextDataSet
-import xml.etree.ElementTree as elemTree
+from text_detector.utils import imgproc
+from text_detector.utils.general import adjustResultCoordinates
+from text_detector.trainer.utils.general import getDetBoxes
+from text_detector.trainer.data.dataset import SynthTextDataSet
 
 
 

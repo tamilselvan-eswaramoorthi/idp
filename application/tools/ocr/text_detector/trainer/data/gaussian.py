@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-from trainer.data.boxEnlarge import enlargebox
+from text_detector.trainer.data.boxEnlarge import enlargebox
 
 
 class GaussianBuilder(object):

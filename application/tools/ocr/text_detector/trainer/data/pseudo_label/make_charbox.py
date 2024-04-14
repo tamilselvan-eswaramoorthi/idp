@@ -6,8 +6,8 @@ import numpy as np
 import cv2
 import torch
 
-from utils import imgproc
-from trainer.data.pseudo_label.watershed import exec_watershed_by_version
+from text_detector.utils import imgproc
+from text_detector.trainer.data.pseudo_label.watershed import exec_watershed_by_version
 
 
 class PseudoCharBoxBuilder:

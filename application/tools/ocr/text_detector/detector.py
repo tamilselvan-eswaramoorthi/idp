@@ -92,9 +92,7 @@ class Detector:
     def get_textbox(self, image,  optimal_num_chars=None):
         text_box_list = []
         estimate_num_chars = optimal_num_chars is not None
-        bboxes_list, polys_list, score_text = self.test_net(image, estimate_num_chars = estimate_num_chars)
-
-        # cv2.imwrite('temp.png', score_text)
+        bboxes_list, polys_list, score_image = self.test_net(image, estimate_num_chars = estimate_num_chars)
 
         if estimate_num_chars:
             polys_list = [[p for p, _ in sorted(polys, key=lambda x: abs(optimal_num_chars - x[1]))]
@@ -119,7 +117,7 @@ class Detector:
             free_list_agg.append(free_list)
 
 
-        return horizontal_list_agg[0], free_list_agg[0]
+        return horizontal_list_agg[0], free_list_agg[0], score_image
 
     def get_image_list(self, horizontal_list, free_list, img, model_height = 64, sort_output = True):
         image_list = []

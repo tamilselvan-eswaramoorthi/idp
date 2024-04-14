@@ -1,18 +1,16 @@
 import os
 import time
-import glob
 import torch
 import torch.optim as optim
 
-from model import CRAFT
+from text_detector.model import CRAFT
+from text_detector.trainer.config.load_config import DotDict
+from text_detector.trainer.data.dataset import SynthTextDataSet, CustomDataset
+from text_detector.trainer.loss.mseloss import Maploss_v2, Maploss_v3
+from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
 
-from trainer.config.load_config import load_yaml, DotDict
-from trainer.data.dataset import SynthTextDataSet, CustomDataset
-from trainer.loss.mseloss import Maploss_v2, Maploss_v3
-from trainer.metrics.eval_det_iou import DetectionIoUEvaluator
-
-from trainer.eval import main_eval
-from utils.general import copyStateDict
+from text_detector.trainer.eval import main_eval
+from text_detector.utils.general import copyStateDict
 
 
 class Trainer(object):
@@ -389,31 +387,3 @@ class Trainer(object):
             )
         torch.save(save_param_dic, save_param_path)
 
-
-def train(yaml_path):
-    # load configure
-    config = load_yaml(yaml_path)
-
-    # Make result_dir
-    results_root_dir = "exp/"
-    if not os.path.exists(results_root_dir):
-        os.makedirs(results_root_dir)
-    res_dir = sorted([int(fol.split(results_root_dir+'train_')[1]) for fol in glob.glob(results_root_dir + 'train_*')])
-    if not len(res_dir):
-        res_dir = os.path.join(results_root_dir + 'train_1')
-    else:
-        res_dir = results_root_dir + "train_" + str(res_dir[-1]+1)
-    os.mkdir(res_dir)
-    config["results_dir"] = res_dir
-
-    if config["mode"] == "weak_supervision":
-        mode = "weak_supervision"
-    else:
-        mode = None
-
-    config = DotDict(config)
-
-    # Start train   
-    buffer_dict = {"custom_data":None}
-    trainer = Trainer(config, 'cpu', mode)
-    trainer.train(buffer_dict)
