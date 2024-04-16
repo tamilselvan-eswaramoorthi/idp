@@ -5,7 +5,7 @@ import torch.optim as optim
 
 from text_detector.model import CRAFT
 from text_detector.trainer.config.load_config import DotDict
-from text_detector.trainer.data.dataset import SynthTextDataSet, CustomDataset
+from text_detector.trainer.data.dataset import CustomDataset
 from text_detector.trainer.loss.mseloss import Maploss_v2, Maploss_v3
 from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
 
@@ -23,36 +23,7 @@ class Trainer(object):
         else:
             self.net_param = None
 
-    def get_synth_loader(self):
-
-        dataset = SynthTextDataSet(
-            output_size=self.config.train.data.output_size,
-            data_dir=self.config.train.synth_data_dir,
-            saved_gt_dir=None,
-            mean=self.config.train.data.mean,
-            variance=self.config.train.data.variance,
-            gauss_init_size=self.config.train.data.gauss_init_size,
-            gauss_sigma=self.config.train.data.gauss_sigma,
-            enlarge_region=self.config.train.data.enlarge_region,
-            enlarge_affinity=self.config.train.data.enlarge_affinity,
-            aug=self.config.train.data.syn_aug,
-            vis_test_dir=self.config.vis_test_dir,
-            vis_opt=self.config.train.data.vis_opt,
-            sample=self.config.train.data.syn_sample,
-        )
-
-        syn_loader = torch.utils.data.DataLoader(
-            dataset,
-            batch_size=self.config.train.batch_size // self.config.train.synth_ratio,
-            shuffle=False,
-            num_workers=self.config.train.num_workers,
-            drop_last=True,
-            pin_memory=True,
-        )
-        return syn_loader
-
     def get_custom_dataset(self):
-
         custom_dataset = CustomDataset(
             output_size=self.config.train.data.output_size,
             data_dir=self.config.data_root_dir,
@@ -146,14 +117,9 @@ class Trainer(object):
 
         # DATASET -----------------------------------------------------------------------------------------------------#
 
-        if self.config.train.use_synthtext:
-            trn_syn_loader = self.get_synth_loader()
-            batch_syn = iter(trn_syn_loader)
 
-        if self.config.train.real_dataset == "custom":
-            trn_real_dataset = self.get_custom_dataset()
-        else:
-            raise Exception("Undefined dataset")
+        trn_real_dataset = self.get_custom_dataset()
+
 
         if self.config.mode == "weak_supervision":
             trn_real_dataset.update_model(supervision_model)
@@ -232,29 +198,10 @@ class Trainer(object):
                 affinity_scores = affinity_scores.cuda(non_blocking=True)
                 confidence_masks = confidence_masks.cuda(non_blocking=True)
 
-                if self.config.train.use_synthtext:
-                    # Synth image load
-                    syn_image, syn_region_label, syn_affi_label, syn_confidence_mask = next(
-                        batch_syn
-                    )
-                    syn_image = syn_image.cuda(non_blocking=True)
-                    syn_region_label = syn_region_label.cuda(non_blocking=True)
-                    syn_affi_label = syn_affi_label.cuda(non_blocking=True)
-                    syn_confidence_mask = syn_confidence_mask.cuda(non_blocking=True)
 
-                    # concat syn & custom image
-                    images = torch.cat((syn_image, images), 0)
-                    region_image_label = torch.cat(
-                        (syn_region_label, region_scores), 0
-                    )
-                    affinity_image_label = torch.cat((syn_affi_label, affinity_scores), 0)
-                    confidence_mask_label = torch.cat(
-                        (syn_confidence_mask, confidence_masks), 0
-                    )
-                else:
-                    region_image_label = region_scores
-                    affinity_image_label = affinity_scores
-                    confidence_mask_label = confidence_masks
+                region_image_label = region_scores
+                affinity_image_label = affinity_scores
+                confidence_mask_label = confidence_masks
 
                 if self.config.train.amp:
                     with torch.cuda.amp.autocast():

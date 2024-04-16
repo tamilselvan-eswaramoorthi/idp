@@ -13,7 +13,7 @@ from text_detector.model import CRAFT
 from text_detector.utils.general import copyStateDict
 from text_detector.trainer.config.load_config import load_yaml, DotDict
 from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
-from text_detector.trainer.utils.inference_boxes import (test_net, load_custom_data, load_synthtext_gt)
+from text_detector.trainer.utils.inference_boxes import test_net, load_custom_data
 
 
 
@@ -169,33 +169,16 @@ def overlay(image, region, affinity, single_img_bbox):
     return temp3
 
 
-def load_test_dataset_iou(test_folder_name, config):
-
-    if test_folder_name == "synthtext":
-        total_bboxes_gt, total_img_path = load_synthtext_gt(config.test_data_dir)
-
-    elif test_folder_name == "custom_data":
-        total_bboxes_gt, total_img_path = load_custom_data(dataFolder=config.test_data_dir)
-
-    else:
-        print("not found test dataset")
-        return None, None
-
+def load_test_dataset_iou(config):
+    total_bboxes_gt, total_img_path = load_custom_data(dataFolder=config.test_data_dir)
     return total_bboxes_gt, total_img_path
 
 
-def viz_test(img, pre_output, pre_box, gt_box, img_name, result_dir, test_folder_name):
+def viz_test(img, pre_output, pre_box, gt_box, img_name, result_dir):
 
-    if test_folder_name == "synthtext":
-        save_result_synth(
-            img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
-        )
-    elif test_folder_name == "custom_data":
-        load_custom_data(
-            img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
-        )
-    else:
-        print("not found test dataset")
+    load_custom_data(
+        img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
+    )
 
 
 def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model, mode):
@@ -203,7 +186,7 @@ def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model
     if not os.path.exists(result_dir):
         os.makedirs(result_dir, exist_ok=True)
 
-    total_imgs_bboxes_gt, total_imgs_path = load_test_dataset_iou("custom_data", config)
+    total_imgs_bboxes_gt, total_imgs_path = load_test_dataset_iou(config)
 
     if mode == "weak_supervision" and torch.cuda.device_count() != 1:
         gpu_count = torch.cuda.device_count() // 2
@@ -286,7 +269,6 @@ def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model
                 gt_box=total_imgs_bboxes_gt[k],
                 img_name=img_path,
                 result_dir=result_dir,
-                test_folder_name="custom_data",
             )
 
     # When distributed evaluation mode, wait until buffer is full filled

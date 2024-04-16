@@ -11,9 +11,8 @@ from text_detector.trainer.data.pseudo_label.watershed import exec_watershed_by_
 
 
 class PseudoCharBoxBuilder:
-    def __init__(self, watershed_param, vis_test_dir, pseudo_vis_opt, gaussian_builder):
+    def __init__(self, watershed_param, pseudo_vis_opt, gaussian_builder):
         self.watershed_param = watershed_param
-        self.vis_test_dir = vis_test_dir
         self.pseudo_vis_opt = pseudo_vis_opt
         self.gaussian_builder = gaussian_builder
         self.cnt = 0
@@ -141,18 +140,6 @@ class PseudoCharBoxBuilder:
                 pseudo_gt_region_score,
                 overlay_img,
             ]
-        )
-
-        if not os.path.exists(os.path.dirname(self.vis_test_dir)):
-            os.makedirs(os.path.dirname(self.vis_test_dir))
-        cv2.imwrite(
-            os.path.join(
-                self.vis_test_dir,
-                "{}_{}".format(
-                    img_name, f"pseudo_char_bbox_{random.randint(0,100)}.jpg"
-                ),
-            ),
-            vis_result,
         )
 
     def clip_into_boundary(self, box, bound):

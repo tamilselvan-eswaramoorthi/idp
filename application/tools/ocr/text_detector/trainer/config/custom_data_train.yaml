@@ -1,17 +1,10 @@
-wandb_opt: False
-
-vis_test_dir: "./vis_result/"
 results_dir: "./work_dir"
 data_root_dir: "./data_root_dir/"
-score_gt_dir: None # "/data/ICDAR2015_official_supervision"
 mode: "weak_supervision"
 
 
 train:
   backbone : vgg
-  use_synthtext: False # If you want to combine SynthText in train time as CRAFT did, you can turn on this option
-  synth_data_dir: "./SynthText/"
-  synth_ratio: 5
   real_dataset: custom
   ckpt_path: "text_detector/weights/CRAFT_clr_amp_29500.pth"
   eval_interval: 1000

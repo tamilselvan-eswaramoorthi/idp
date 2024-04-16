@@ -1,12 +1,9 @@
 import os
-import re
 import cv2
 import random
-import itertools
 
 import numpy as np
 from PIL import Image
-import scipy.io as scio
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
@@ -37,7 +34,6 @@ class CraftBaseDataset(Dataset):
         enlarge_region,
         enlarge_affinity,
         aug,
-        vis_test_dir,
         vis_opt,
         sample,
     ):
@@ -49,7 +45,6 @@ class CraftBaseDataset(Dataset):
             gauss_init_size, gauss_sigma, enlarge_region, enlarge_affinity
         )
         self.aug = aug
-        self.vis_test_dir = vis_test_dir
         self.vis_opt = vis_opt
         self.sample = sample
         if self.sample != -1:
@@ -157,7 +152,6 @@ class CraftBaseDataset(Dataset):
         if self.vis_opt:
             saveImage(
                 self.img_names[index],
-                self.vis_test_dir,
                 image.copy(),
                 word_level_char_bbox.copy(),
                 all_affinity_bbox.copy(),
@@ -173,7 +167,6 @@ class CraftBaseDataset(Dataset):
         if self.vis_opt:
             saveInput(
                 self.img_names[index],
-                self.vis_test_dir,
                 image,
                 region_score,
                 affinity_score,
@@ -195,120 +188,6 @@ class CraftBaseDataset(Dataset):
 
         return image, region_score, affinity_score, confidence_mask
 
-
-class SynthTextDataSet(CraftBaseDataset):
-    def __init__(
-        self,
-        output_size,
-        data_dir,
-        saved_gt_dir,
-        mean,
-        variance,
-        gauss_init_size,
-        gauss_sigma,
-        enlarge_region,
-        enlarge_affinity,
-        aug,
-        vis_test_dir,
-        vis_opt,
-        sample,
-    ):
-        super().__init__(
-            output_size,
-            data_dir,
-            saved_gt_dir,
-            mean,
-            variance,
-            gauss_init_size,
-            gauss_sigma,
-            enlarge_region,
-            enlarge_affinity,
-            aug,
-            vis_test_dir,
-            vis_opt,
-            sample,
-        )
-        self.img_names, self.char_bbox, self.img_words = self.load_data()
-        self.vis_index = list(range(1000))
-
-    def load_data(self, bbox="char"):
-
-        gt = scio.loadmat(os.path.join(self.data_dir, "gt.mat"))
-        img_names = gt["imnames"][0]
-        img_words = gt["txt"][0]
-
-        if bbox == "char":
-            img_bbox = gt["charBB"][0]
-        else:
-            img_bbox = gt["wordBB"][0]  # word bbox needed for test
-
-        return img_names, img_bbox, img_words
-
-    def dilate_img_to_output_size(self, image, char_bbox):
-        h, w, _ = image.shape
-        if min(h, w) <= self.output_size:
-            scale = float(self.output_size) / min(h, w)
-        else:
-            scale = 1.0
-        image = cv2.resize(
-            image, dsize=None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC
-        )
-        char_bbox *= scale
-        return image, char_bbox
-
-    def make_gt_score(self, index):
-        img_path = os.path.join(self.data_dir, self.img_names[index][0])
-        image = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        all_char_bbox = self.char_bbox[index].transpose(
-            (2, 1, 0)
-        )  # shape : (Number of characters in image, 4, 2)
-
-        img_h, img_w, _ = image.shape
-
-        confidence_mask = np.ones((img_h, img_w), dtype=np.float32)
-
-        words = [
-            re.split(" \n|\n |\n| ", word.strip()) for word in self.img_words[index]
-        ]
-        words = list(itertools.chain(*words))
-        words = [word for word in words if len(word) > 0]
-
-        word_level_char_bbox = []
-        char_idx = 0
-
-        for i in range(len(words)):
-            length_of_word = len(words[i])
-            word_bbox = all_char_bbox[char_idx : char_idx + length_of_word]
-            assert len(word_bbox) == length_of_word
-            char_idx += length_of_word
-            word_bbox = np.array(word_bbox)
-            word_level_char_bbox.append(word_bbox)
-
-        region_score = self.gaussian_builder.generate_region(
-            img_h,
-            img_w,
-            word_level_char_bbox,
-            horizontal_text_bools=[True for _ in range(len(words))],
-        )
-        affinity_score, all_affinity_bbox = self.gaussian_builder.generate_affinity(
-            img_h,
-            img_w,
-            word_level_char_bbox,
-            horizontal_text_bools=[True for _ in range(len(words))],
-        )
-
-        return (
-            image,
-            region_score,
-            affinity_score,
-            confidence_mask,
-            word_level_char_bbox,
-            all_affinity_bbox,
-            words,
-        )
-
-
 class CustomDataset(CraftBaseDataset):
     def __init__(
         self,
@@ -322,7 +201,6 @@ class CustomDataset(CraftBaseDataset):
         enlarge_region,
         enlarge_affinity,
         aug,
-        vis_test_dir,
         vis_opt,
         sample,
         watershed_param,
@@ -340,14 +218,13 @@ class CustomDataset(CraftBaseDataset):
             enlarge_region,
             enlarge_affinity,
             aug,
-            vis_test_dir,
             vis_opt,
             sample,
         )
         self.pseudo_vis_opt = pseudo_vis_opt
         self.do_not_care_label = do_not_care_label
         self.pseudo_charbox_builder = PseudoCharBoxBuilder(
-            watershed_param, vis_test_dir, pseudo_vis_opt, self.gaussian_builder
+            watershed_param, pseudo_vis_opt, self.gaussian_builder
         )
         self.vis_index = list(range(1000))
         self.img_dir = os.path.join(data_dir, "ch4_training_images")

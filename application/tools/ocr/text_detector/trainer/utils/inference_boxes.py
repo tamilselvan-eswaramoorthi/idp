@@ -12,7 +12,6 @@ from torch.autograd import Variable
 from text_detector.utils import imgproc
 from text_detector.utils.general import adjustResultCoordinates
 from text_detector.trainer.utils.general import getDetBoxes
-from text_detector.trainer.data.dataset import SynthTextDataSet
 
 
 
@@ -163,46 +162,6 @@ def load_prescription_cleval_gt(dataFolder):
         total_imgs_parsing_bboxes.append(word_bboxes)
 
     return total_imgs_parsing_bboxes, sorted(total_img_path)
-
-
-def load_synthtext_gt(data_folder):
-
-    synth_dataset = SynthTextDataSet(
-        output_size=768, data_dir=data_folder, saved_gt_dir=data_folder, logging=False
-    )
-    img_names, img_bbox, img_words = synth_dataset.load_data(bbox="word")
-
-    total_img_path = []
-    total_imgs_bboxes = []
-    for index in range(len(img_bbox[:100])):
-        img_path = os.path.join(data_folder, img_names[index][0])
-        total_img_path.append(img_path)
-        try:
-            wordbox = img_bbox[index].transpose((2, 1, 0))
-        except:
-            wordbox = np.expand_dims(img_bbox[index], axis=0)
-            wordbox = wordbox.transpose((0, 2, 1))
-
-        words = [re.split(" \n|\n |\n| ", t.strip()) for t in img_words[index]]
-        words = list(itertools.chain(*words))
-        words = [t for t in words if len(t) > 0]
-
-        if len(words) != len(wordbox):
-            import ipdb
-
-            ipdb.set_trace()
-
-        single_img_bboxes = []
-        for j in range(len(words)):
-            box_info_dict = {"points": None, "text": None, "ignore": None}
-            box_info_dict["points"] = wordbox[j]
-            box_info_dict["text"] = words[j]
-            box_info_dict["ignore"] = False
-            single_img_bboxes.append(box_info_dict)
-
-        total_imgs_bboxes.append(single_img_bboxes)
-
-    return total_imgs_bboxes, total_img_path
 
 
 def load_custom_data(dataFolder, isTraing=False):
