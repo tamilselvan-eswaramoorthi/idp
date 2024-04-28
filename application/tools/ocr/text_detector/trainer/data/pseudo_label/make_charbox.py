@@ -76,7 +76,7 @@ class PseudoCharBoxBuilder:
         warped = cv2.warpPerspective(image, M, (long_side, short_side))
         return warped, M, horizontal_text_bool
 
-    def inference_word_box(self, net, gpu, word_image):
+    def inference_word_box(self, net, device, word_image):
         if net.training:
             net.eval()
 
@@ -89,7 +89,10 @@ class PseudoCharBoxBuilder:
                 )
             )
             word_img_torch = word_img_torch.permute(2, 0, 1).unsqueeze(0)
-            word_img_torch = word_img_torch.type(torch.FloatTensor).cuda(gpu)
+            if str(device) != 'cpu':
+                word_img_torch = word_img_torch.type(torch.FloatTensor).cuda(device)
+            else:
+                word_img_torch = word_img_torch.type(torch.FloatTensor)
             with torch.cuda.amp.autocast():
                 word_img_scores, _ = net(word_img_torch)
         return word_img_scores

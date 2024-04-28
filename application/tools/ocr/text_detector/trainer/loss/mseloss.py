@@ -72,8 +72,8 @@ class Maploss_v2(nn.Module):
         region_scores_pre,
         affinity_scores_pre,
         mask,
-        neg_rto,
-        n_min_neg,
+        neg_rto = 0.3,
+        n_min_neg = 5000,
     ):
         loss_fn = torch.nn.MSELoss(reduce=False, size_average=False)
         assert (
@@ -148,8 +148,8 @@ class Maploss_v3(nn.Module):
         region_scores_pre,
         affinity_scores_pre,
         mask,
-        neg_rto,
-        n_min_neg,
+        neg_rto = 0.3,
+        n_min_neg = 5000,
     ):
         loss_fn = torch.nn.MSELoss(reduce=False, size_average=False)
 

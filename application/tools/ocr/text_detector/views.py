@@ -16,18 +16,17 @@ detector_service = Blueprint('detector', __name__, url_prefix = '/text_detector'
 
 @detector_service.route("/train", methods = ["POST"])
 def train():
+    yaml_path = request.form.get("yaml_path", 'text_detector/trainer/config/custom_data_train')
     config = load_yaml(yaml_path)
     config["results_dir"] = res_dir = request.form.get("results_dir", "./work_dir")
     config["data_root_dir"] = request.form.get("data_root_dir", "./data_root_dir/")
-    config["train"]["real_dataset"] = request.form.get("real_dataset", "custom")
     config["train"]["ckpt_path"] = request.form.get("ckpt_path", "text_detector/weights/CRAFT_clr_amp_29500.pth")
-    config["train"]["eval_interval"] = request.form.get("eval_interval", 1000)
-    config["train"]["batch_size"] = request.form.get("batch_size", 8)
-    config["train"]["st_iter"] = request.form.get("st_iter", 0)
-    config["train"]["end_iter"] = request.form.get("end_iter", 25000)
+    config["train"]["eval_interval"] = int(request.form.get("eval_interval", 1000))
+    config["train"]["batch_size"] = int(request.form.get("batch_size", 8))
+    config["train"]["st_iter"] = int(request.form.get("st_iter", 0))
+    config["train"]["end_iter"] = int(request.form.get("end_iter", 25000))
     mode = request.form.get("mode", "weak_supervision")
 
-    yaml_path = request.form.get("yaml_path", 'text_detector/trainer/config/custom_data_train')
     
     if not os.path.exists(res_dir):
         os.makedirs(res_dir)
@@ -37,8 +36,7 @@ def train():
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    trainer = Trainer(DotDict(config), device, mode)
-    trainer.train({"custom_data":None})
+    Trainer(DotDict(config), device = device, mode = mode).train()
 
 @detector_service.route("/test", methods = ["POST"])
 def test():

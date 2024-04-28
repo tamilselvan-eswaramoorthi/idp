@@ -168,32 +168,24 @@ def overlay(image, region, affinity, single_img_bbox):
 
     return temp3
 
-
-def load_test_dataset_iou(config):
-    total_bboxes_gt, total_img_path = load_custom_data(dataFolder=config.test_data_dir)
-    return total_bboxes_gt, total_img_path
-
-
-def viz_test(img, pre_output, pre_box, gt_box, img_name, result_dir):
-
-    load_custom_data(
-        img_name, img[:, :, ::-1].copy(), pre_output, pre_box, gt_box, result_dir
-    )
-
-
-def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model, mode):
+def main_eval(model_path, backbone, data_path, evaluator, result_dir, model, mode, device):
 
     if not os.path.exists(result_dir):
         os.makedirs(result_dir, exist_ok=True)
 
-    total_imgs_bboxes_gt, total_imgs_path = load_test_dataset_iou(config)
-
-    if mode == "weak_supervision" and torch.cuda.device_count() != 1:
-        gpu_count = torch.cuda.device_count() // 2
+    total_imgs_bboxes_gt, total_imgs_path = load_custom_data(dataFolder=data_path)
+    
+    if str(device) != "cpu":
+        if mode == "weak_supervision" and torch.cuda.device_count() != 1:
+            gpu_count = torch.cuda.device_count() // 2
+        else:
+            gpu_count = torch.cuda.device_count()
+        gpu_idx = torch.cuda.current_device()
+        torch.cuda.set_device(gpu_idx)
     else:
-        gpu_count = torch.cuda.device_count()
-    gpu_idx = torch.cuda.current_device()
-    torch.cuda.set_device(gpu_idx)
+        gpu_count = 0
+        gpu_idx = 0
+
 
     # Only evaluation time
     if model is None:
@@ -205,31 +197,24 @@ def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model
             raise Exception("Undefined architecture")
 
         print("Loading weights from checkpoint (" + model_path + ")")
-        net_param = torch.load(model_path, map_location=f"cuda:{gpu_idx}")
-        model.load_state_dict(copyStateDict(net_param["craft"]))
-
-        if config.cuda:
+        if str(device) != "cpu":
+            net_param = torch.load(model_path, map_location=f"cuda:{gpu_idx}")
+            model.load_state_dict(copyStateDict(net_param["craft"]))
+        else:
+            net_param = torch.load(model_path, map_location="cpu")
+            model.load_state_dict(copyStateDict(net_param["craft"]))
             model = model.cuda()
             cudnn.benchmark = False
 
-    # Distributed evaluation in the middle of training time
     else:
-        if buffer is not None:
-            # check all buffer value is None for distributed evaluation
-            assert all(
-                v is None for v in buffer
-            ), "Buffer already filled with another value."
-        slice_idx = len(total_imgs_bboxes_gt) // gpu_count
-
-        # last gpu
-        if gpu_idx == gpu_count - 1:
-            piece_imgs_path = total_imgs_path[gpu_idx * slice_idx :]
-            # piece_imgs_bboxes_gt = total_imgs_bboxes_gt[gpu_idx * slice_idx:]
+        if gpu_count == 0:
+            piece_imgs_path = total_imgs_path
         else:
-            piece_imgs_path = total_imgs_path[
-                gpu_idx * slice_idx : (gpu_idx + 1) * slice_idx
-            ]
-            # piece_imgs_bboxes_gt = total_imgs_bboxes_gt[gpu_idx * slice_idx: (gpu_idx + 1) * slice_idx]
+            slice_idx = len(total_imgs_bboxes_gt) // gpu_count
+            if gpu_idx == gpu_count - 1:
+                piece_imgs_path = total_imgs_path[gpu_idx * slice_idx :]
+            else:
+                piece_imgs_path = total_imgs_path[gpu_idx * slice_idx : (gpu_idx + 1) * slice_idx]
 
     model.eval()
 
@@ -242,41 +227,17 @@ def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model
         bboxes, polys, score_text = test_net(
             model,
             image,
-            config.text_threshold,
-            config.link_threshold,
-            config.low_text,
-            config.cuda,
-            config.poly,
-            config.canvas_size,
-            config.mag_ratio,
+            text_threshold = 0.75,
+            link_threshold = 0.2,
+            low_text = 0.5,
+            device = device,
+            poly = False
         )
 
         for box in bboxes:
             box_info = {"points": box, "text": "###", "ignore": False}
             single_img_bbox.append(box_info)
         total_imgs_bboxes_pre.append(single_img_bbox)
-        # Distributed evaluation -------------------------------------------------------------------------------------#
-        if buffer is not None:
-            buffer[gpu_idx * slice_idx + k] = single_img_bbox
-        # print(sum([element is not None for element in buffer]))
-        # -------------------------------------------------------------------------------------------------------------#
-
-        if config.vis_opt:
-            viz_test(
-                image,
-                score_text,
-                pre_box=polys,
-                gt_box=total_imgs_bboxes_gt[k],
-                img_name=img_path,
-                result_dir=result_dir,
-            )
-
-    # When distributed evaluation mode, wait until buffer is full filled
-    if buffer is not None:
-        while None in buffer:
-            continue
-        assert all(v is not None for v in buffer), "Buffer not filled"
-        total_imgs_bboxes_pre = buffer
 
     results = []
     for i, (gt, pred) in enumerate(zip(total_imgs_bboxes_gt, total_imgs_bboxes_pre)):
@@ -284,7 +245,6 @@ def main_eval(model_path, backbone, config, evaluator, result_dir, buffer, model
         results.append(perSampleMetrics_dict)
 
     metrics = evaluator.combine_results(results)
-    print(metrics)
     return metrics
 
 def cal_eval(config, data, res_dir_name, opt, mode):

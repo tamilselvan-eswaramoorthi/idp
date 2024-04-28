@@ -166,36 +166,33 @@ def load_prescription_cleval_gt(dataFolder):
 
 def load_custom_data(dataFolder, isTraing=False):
     if isTraing:
-        img_folderName = "ch4_training_images"
-        gt_folderName = "ch4_training_localization_transcription_gt"
+        img_folderName = "train_images"
+        gt_folderName = "train_annotations"
     else:
-        img_folderName = "ch4_test_images"
-        gt_folderName = "ch4_test_localization_transcription_gt"
+        img_folderName = "test_images"
+        gt_folderName = "test_annotations"
 
     gt_folder_path = os.listdir(os.path.join(dataFolder, gt_folderName))
     total_imgs_bboxes = []
     total_img_path = []
     for gt_path in gt_folder_path:
         gt_path = os.path.join(os.path.join(dataFolder, gt_folderName), gt_path)
-        img_path = (
-            gt_path.replace(gt_folderName, img_folderName)
-            .replace(".txt", ".jpg")
-            .replace("gt_", "")
-        )
+        img_path = (gt_path.replace(gt_folderName, img_folderName).replace(".txt", ".jpg").replace(".txt", ".png"))
         image = cv2.imread(img_path)
-        lines = open(gt_path, encoding="utf-8").readlines()
+        with open(gt_path, 'r',  encoding="utf8", errors='ignore') as f:
+            lines = f.readlines()
         single_img_bboxes = []
         for line in lines:
             box_info_dict = {"points": None, "text": None, "ignore": None}
 
             box_info = line.strip().encode("utf-8").decode("utf-8-sig").split(",")
+            if len(box_info) <= 8:
+                continue
             box_points = [int(box_info[j]) for j in range(8)]
             word = box_info[8:]
             word = ",".join(word)
             box_points = np.array(box_points, np.int32).reshape(4, 2)
-            cv2.polylines(
-                image, [np.array(box_points).astype(np.int)], True, (0, 0, 255), 1
-            )
+            cv2.polylines(image, [np.array(box_points).astype(np.int64)], True, (0, 0, 255), 1)
             box_info_dict["points"] = box_points
             box_info_dict["text"] = word
             if word == "###":
@@ -215,10 +212,10 @@ def test_net(
     text_threshold,
     link_threshold,
     low_text,
-    cuda,
+    device,
     poly,
     canvas_size=1280,
-    mag_ratio=1.5,
+    mag_ratio=1.5
 ):
     # resize
 
@@ -231,7 +228,7 @@ def test_net(
     x = imgproc.normalizeMeanVariance(img_resized)
     x = torch.from_numpy(x).permute(2, 0, 1)  # [h, w, c] to [c, h, w]
     x = Variable(x.unsqueeze(0))  # [c, h, w] to [b, c, h, w]
-    if cuda:
+    if str(device) != 'cpu':
         x = x.cuda()
 
     # forward pass
