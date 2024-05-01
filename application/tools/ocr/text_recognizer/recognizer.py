@@ -19,7 +19,6 @@ class Recognizer:
         model_path = ''
         for model_name in os.listdir(recognizer_path):
             if model_name.endswith('.pth'):
-                print (model_name)
                 model_path = os.path.join(recognizer_path, model_name)
         if not os.path.exists(model_path):
             raise FileNotFoundError("model not found")
@@ -117,7 +116,7 @@ class Recognizer:
             self.model = torch.nn.DataParallel(self.model).to(self.device)
             self.model.load_state_dict(torch.load(model_path, map_location=self.device))
 
-    def get_text(self, imgW, image_list, batch_size=1, contrast_ths=0.1, adjust_contrast=0.5):
+    def get_text(self, imgW, image_list, is_one_list = False, batch_size=1, contrast_ths=0.1, adjust_contrast=0.5):
         batch_max_length = int(imgW/10)
 
         coord = [item[0] for item in image_list]
@@ -158,6 +157,16 @@ class Recognizer:
                     result.append( (box, pred2[0], pred2[1]) )
             else:
                 result.append( (box, pred1[0], pred1[1]) )
-
+        if is_one_list:
+            boxes = []
+            words = []
+            for box, word, conf in result:
+                if word == '' or word is None:
+                    continue 
+                box = [int(box[0][0]), int(box[0][1]), int(box[2][0]), int(box[2][1])]
+                boxes.append(box)
+                words.append(word)
+            return boxes, words
+                
         return result
 

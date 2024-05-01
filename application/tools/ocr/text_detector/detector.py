@@ -5,7 +5,6 @@ import numpy as np
 import torch.backends.cudnn as cudnn
 
 from .model import CRAFT
-from .utils.load_image import loadImage
 from .utils.getboxes import getDetBoxes
 from .utils.grouper import group_text_box
 from .utils.imgproc import cvt2HeatmapImg, resize_aspect_ratio, normalizeMeanVariance
@@ -14,12 +13,16 @@ from .utils.general import diff, copyStateDict, adjustResultCoordinates, compute
 class Detector:
 
     def __init__(self, detector_path, min_size = 20, canvas_size=1280, mag_ratio=1.5) -> None:
-      self.device = 'cpu'
-      self.model = self.get_detector(detector_path)
-
-      self.min_size = min_size
-      self.canvas_size = canvas_size
-      self.mag_ratio = mag_ratio
+        self.device = 'cpu'
+        self.detector_path = detector_path
+        self.initialized = False
+        self.min_size = min_size
+        self.canvas_size = canvas_size
+        self.mag_ratio = mag_ratio
+    
+    def initialize(self, detector_path):
+        self.model = self.get_detector(detector_path)
+        self.initialized = True
 
     def test_net(self, image, text_threshold=0.7, link_threshold=0.4, low_text=0.4, poly=False, estimate_num_chars=False):
         if isinstance(image, np.ndarray) and len(image.shape) == 4:  # image is batch of np arrays
@@ -90,6 +93,8 @@ class Detector:
         return net
 
     def get_textbox(self, image,  optimal_num_chars=None):
+        if not self.initialized:
+            self.initialize(self.detector_path)
         text_box_list = []
         estimate_num_chars = optimal_num_chars is not None
         bboxes_list, polys_list, score_image = self.test_net(image, estimate_num_chars = estimate_num_chars)
