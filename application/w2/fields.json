@@ -1,0 +1,41 @@
+{
+    "employee": {
+        "first_name": "",
+        "last_name": "",
+        "suffix": "",
+        "address": "",
+        "social_security_number": ""
+    },
+    "employer": {
+        "ein": "",
+        "name": "",
+        "address": ""
+    },
+    "compensation": {
+        "assessment_year": "",
+        "wages": "",
+        "federal_tax_withheld": "",
+        "ss_wages": "",
+        "ss_tax_withheld": "",
+        "medicare_wages": "",
+        "medicare_tax_withheld": "",
+        "ss_tips": "",
+        "allocated_tips": "",
+        "dependent_care_benefits": "",
+        "nonqualified_plans": "",
+        "statutory_employee": "",
+        "retirement_plan": "",
+        "3rd_sick_pay": "",
+        "12a": "",
+        "12b": "",
+        "12c": "",
+        "12d": "",
+        "other": "",
+        "state": "",
+        "state_wages": "",
+        "state_income_tax": "",
+        "local_wages": "",
+        "local_income_tax": "",
+        "locality_name": ""
+    }
+}
