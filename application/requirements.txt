@@ -10,3 +10,4 @@ wandb==0.12.9
 tqdm==4.66.1
 flask==3.0.3
 python-dotenv==1.0.1
+fpdf==1.7.2
