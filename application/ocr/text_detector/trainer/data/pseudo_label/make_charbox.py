@@ -1,13 +1,11 @@
-import os
-import random
-import math
 
-import numpy as np
 import cv2
+import math
 import torch
+import numpy as np
 
-from text_detector.utils import imgproc
-from text_detector.trainer.data.pseudo_label.watershed import exec_watershed_by_version
+from ocr.text_detector.utils import imgproc
+from ocr.text_detector.trainer.data.pseudo_label.watershed import exec_watershed_by_version
 
 
 class PseudoCharBoxBuilder:

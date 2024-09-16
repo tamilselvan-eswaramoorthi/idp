@@ -1,0 +1,210 @@
+[
+    {
+      "name": "photo",
+      "id": 45,
+      "color": "#118619",
+      "type": "rectangle",
+      "attributes": [
+        {
+          "id": 51,
+          "name": "align",
+          "input_type": "radio",
+          "mutable": false,
+          "values": [
+            "middle",
+            "left",
+            "right"
+          ],
+          "default_value": "middle"
+        }
+      ]
+    },
+    {
+      "name": "textbox",
+      "id": 46,
+      "color": "#d6e6d9",
+      "type": "rectangle",
+      "attributes": [
+        {
+          "id": 35,
+          "name": "1_field_name",
+          "input_type": "text",
+          "mutable": false,
+          "values": [
+            ""
+          ],
+          "default_value": ""
+        },
+        {
+          "id": 36,
+          "name": "2_max_length",
+          "input_type": "number",
+          "mutable": false,
+          "values": [
+            "0",
+            "1000",
+            "1"
+          ],
+          "default_value": "0"
+        },
+        {
+          "id": 37,
+          "name": "3_is_alphanum",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 38,
+          "name": "4_is_date",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 39,
+          "name": "5_is_name",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 40,
+          "name": "6_is_number",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 41,
+          "name": "7_is_address",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 42,
+          "name": "7_is_email",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 43,
+          "name": "8_is_company_name",
+          "input_type": "checkbox",
+          "mutable": false,
+          "values": [
+            "false"
+          ],
+          "default_value": "false"
+        },
+        {
+          "id": 44,
+          "name": "date_format",
+          "input_type": "text",
+          "mutable": false,
+          "values": [
+            "%d-%m-%Y"
+          ],
+          "default_value": "%d-%m-%Y"
+        },
+        {
+          "id": 45,
+          "name": "language",
+          "input_type": "radio",
+          "mutable": false,
+          "values": [
+            "english",
+            "hindi",
+            "tamil"
+          ],
+          "default_value": "english"
+        },
+        {
+          "id": 46,
+          "name": "static_value",
+          "input_type": "text",
+          "mutable": false,
+          "values": [
+            ""
+          ],
+          "default_value": ""
+        },
+        {
+          "id": 47,
+          "name": "text_align",
+          "input_type": "radio",
+          "mutable": false,
+          "values": [
+            "left",
+            "right",
+            "middle"
+          ],
+          "default_value": "left"
+        },
+        {
+          "id": 48,
+          "name": "alpha_num_placement",
+          "input_type": "text",
+          "mutable": false,
+          "values": [
+            ""
+          ],
+          "default_value": ""
+        },
+        {
+          "id": 50,
+          "name": "name_type",
+          "input_type": "radio",
+          "mutable": false,
+          "values": [
+            "n/a",
+            "full_name",
+            "first_name",
+            "middle_name",
+            "last_name"
+          ],
+          "default_value": "n/a"
+        }
+      ]
+    },
+    {
+      "name": "signature",
+      "id": 47,
+      "color": "#ce8aed",
+      "type": "rectangle",
+      "attributes": [
+        {
+          "id": 52,
+          "name": "align",
+          "input_type": "radio",
+          "mutable": false,
+          "values": [
+            "middle",
+            "left",
+            "right"
+          ],
+          "default_value": "middle"
+        }
+      ]
+    }
+  ]

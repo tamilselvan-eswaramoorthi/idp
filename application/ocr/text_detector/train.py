@@ -4,14 +4,14 @@ import torch
 from tqdm import tqdm
 import torch.optim as optim
 
-from text_detector.model import CRAFT
-from text_detector.trainer.config.load_config import DotDict
-from text_detector.trainer.data.dataset import CustomDataset
-from text_detector.trainer.loss.mseloss import Maploss_v2, Maploss_v3
-from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
+from ocr.text_detector.model import CRAFT
+from ocr.text_detector.trainer.config.load_config import DotDict
+from ocr.text_detector.trainer.data.dataset import CustomDataset
+from ocr.text_detector.trainer.loss.mseloss import Maploss_v2, Maploss_v3
+from ocr.text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
 
-from text_detector.trainer.eval import main_eval
-from text_detector.utils.general import copyStateDict
+from ocr.text_detector.trainer.eval import main_eval
+from ocr.text_detector.utils.general import copyStateDict
 
 
 class Trainer(object):

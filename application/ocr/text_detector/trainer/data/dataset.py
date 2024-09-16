@@ -7,8 +7,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as transforms
 
-from text_detector.trainer.data.gaussian import GaussianBuilder
-from text_detector.trainer.data.imgaug import (
+from ocr.text_detector.trainer.data.gaussian import GaussianBuilder
+from ocr.text_detector.trainer.data.imgaug import (
     rescale,
     random_resize_crop_synth,
     random_resize_crop,
@@ -17,9 +17,9 @@ from text_detector.trainer.data.imgaug import (
     random_scale,
     random_crop,
 )
-from text_detector.trainer.data.pseudo_label.make_charbox import PseudoCharBoxBuilder
-from text_detector.trainer.utils.general import saveInput, saveImage
-from text_detector.utils.imgproc import normalizeMeanVariance
+from ocr.text_detector.trainer.data.pseudo_label.make_charbox import PseudoCharBoxBuilder
+from ocr.text_detector.trainer.utils.general import saveInput, saveImage
+from ocr.text_detector.utils.imgproc import normalizeMeanVariance
 
 class CraftBaseDataset(Dataset):
     def __init__(

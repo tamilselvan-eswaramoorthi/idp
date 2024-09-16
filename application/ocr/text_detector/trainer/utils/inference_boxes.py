@@ -1,17 +1,15 @@
 import os
-import re
 import cv2
 import math
-import itertools
 import numpy as np
 import xml.etree.ElementTree as elemTree
 
 import torch
 from torch.autograd import Variable
 
-from text_detector.utils import imgproc
-from text_detector.utils.general import adjustResultCoordinates
-from text_detector.trainer.utils.general import getDetBoxes
+from ocr.text_detector.utils import imgproc
+from ocr.text_detector.utils.general import adjustResultCoordinates
+from ocr.text_detector.trainer.utils.general import getDetBoxes
 
 
 

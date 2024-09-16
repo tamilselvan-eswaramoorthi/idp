@@ -7,23 +7,23 @@ from ocr.text_detector import Detector
 from ocr.text_recognizer import Recognizer
 from ocr.utils.load_image import loadImage
 
-# from ocr.text_detector import Trainer
-# from ocr.text_detector.trainer.config.load_config import load_yaml, DotDict
+from ocr.text_detector import Trainer
+from ocr.text_detector.trainer.config.load_config import load_yaml, DotDict
 
 
 ocr_service = Blueprint('ocr', __name__, url_prefix = '/ocr')
 
 # if os.environ.get("MODE") == "prod":
-detect = Detector("/home/tamilselvan/Desktop/idp/idp/application/tools/ocr/text_detector/weights/craft_mlt_25k.pth")
-recognize = Recognizer("/home/tamilselvan/Desktop/idp/idp/application/tools/ocr/text_recognizer/weights/")
+detect = Detector(os.environ.get("DETECTOR_PATH"))
+recognize = Recognizer(os.environ.get("RECOGNIZER_PATH"))
 
 @ocr_service.route("/train_detector", methods = ["POST"])
 def train_detector():
-    yaml_path = request.form.get("yaml_path", 'text_detector/trainer/config/custom_data_train')
+    yaml_path = request.form.get("yaml_path", 'ocr/text_detector/trainer/config/custom_data_train')
     config = load_yaml(yaml_path)
     config["results_dir"] = res_dir = request.form.get("results_dir", "./work_dir")
     config["data_root_dir"] = request.form.get("data_root_dir", "./data_root_dir/")
-    config["train"]["ckpt_path"] = request.form.get("ckpt_path", "text_detector/weights/CRAFT_clr_amp_29500.pth")
+    config["train"]["ckpt_path"] = request.form.get("ckpt_path", "ocr/text_detector/weights/CRAFT_clr_amp_29500.pth")
     config["train"]["eval_interval"] = int(request.form.get("eval_interval", 1000))
     config["train"]["batch_size"] = int(request.form.get("batch_size", 8))
     config["train"]["st_iter"] = int(request.form.get("st_iter", 0))

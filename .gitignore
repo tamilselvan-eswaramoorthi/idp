@@ -1,7 +1,8 @@
-application/tools/ocr/text_detector/weights/*
-application/tools/ocr/text_recognizer/weights/*
+application/ocr/text_detector/weights/*
+application/ocr/text_recognizer/weights/*
 __pycache__/
 *.py[cod]
 *$py.class
-application/tools/ocr/sample.png
-application/tools/ocr/work_dir/*
+application/ocr/sample.png
+application/ocr/work_dir/*
+application/work_dir/custom_data_train.yaml

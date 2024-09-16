@@ -1,7 +1,5 @@
-import cv2
 import json
 import requests
-from uuid import uuid4
 from flask import Blueprint, request
 
 from .layoutlm import Parser

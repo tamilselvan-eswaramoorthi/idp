@@ -1,8 +1,8 @@
 import os
 import cv2
 import numpy as np
-from text_detector.utils.getboxes import getDetBoxes
-from text_detector.utils.imgproc import cvt2HeatmapImg
+from ocr.text_detector.utils.getboxes import getDetBoxes
+from ocr.text_detector.utils.imgproc import cvt2HeatmapImg
 
 def saveInput(imagename, vis_dir, image, region_scores, affinity_scores, confidence_mask):
     image = np.uint8(image.copy())

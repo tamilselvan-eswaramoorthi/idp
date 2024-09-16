@@ -2,6 +2,7 @@
 from flask import Flask
 from ocr import ocr_service
 from parser import parser_service
+
 # instance of flask application
 app = Flask(__name__)
 

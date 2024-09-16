@@ -9,12 +9,11 @@ import numpy as np
 from tqdm import tqdm
 import torch.backends.cudnn as cudnn
 
-from text_detector.model import CRAFT
-from text_detector.utils.general import copyStateDict
-from text_detector.trainer.config.load_config import load_yaml, DotDict
-from text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
-from text_detector.trainer.utils.inference_boxes import test_net, load_custom_data
-
+from ocr.text_detector.model import CRAFT
+from ocr.text_detector.utils.general import copyStateDict
+from ocr.text_detector.trainer.config.load_config import load_yaml, DotDict
+from ocr.text_detector.trainer.metrics.eval_det_iou import DetectionIoUEvaluator
+from ocr.text_detector.trainer.utils.inference_boxes import test_net, load_custom_data
 
 
 def save_result_synth(img_file, img, pre_output, pre_box, gt_box=None, result_dir=""):
