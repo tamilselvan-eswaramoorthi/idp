@@ -7,3 +7,6 @@ application/ocr/sample.png
 application/ocr/work_dir/*
 application/work_dir/custom_data_train.yaml
 application/work_dir/data/*
+layoutlm_re/data/
+layoutlm_re/hf_cache/
+layoutlm_re/output/
