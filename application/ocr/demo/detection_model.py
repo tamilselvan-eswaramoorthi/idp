@@ -198,7 +198,7 @@ class CRAFT(nn.Module):
     def forward(self, x):
         """ Base network """
         if self.amp:
-            with torch.cuda.amp.autocast():
+            with autocast(enabled=config.DEVICE.type == 'cuda'):
                 sources = self.basenet(x)
 
                 """ U network """

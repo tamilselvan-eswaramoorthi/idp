@@ -6,7 +6,6 @@ from torchvision import models
 from packaging import version
 import torch.nn.functional as F
 from collections import namedtuple
-from torchvision.models.vgg import model_urls
 
 class double_conv(nn.Module):
     def __init__(self, in_ch, mid_ch, out_ch):
@@ -42,13 +41,7 @@ def init_weights(modules):
 class vgg16_bn(torch.nn.Module):
     def __init__(self, pretrained=True, freeze=True):
         super(vgg16_bn, self).__init__()
-        if version.parse(torchvision.__version__) >= version.parse('0.13'):
-            vgg_pretrained_features = models.vgg16_bn(
-                weights=models.VGG16_BN_Weights.DEFAULT if pretrained else None
-            ).features
-        else: # torchvision.__version__ < 0.13
-            models.vgg.model_urls['vgg16_bn'] = models.vgg.model_urls['vgg16_bn'].replace('https://', 'http://')
-            vgg_pretrained_features = models.vgg16_bn(pretrained=pretrained).features
+        vgg_pretrained_features = models.vgg16_bn(weights=models.VGG16_BN_Weights.DEFAULT if pretrained else None).features
         
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
@@ -113,7 +106,6 @@ def init_weights(modules):
 class vgg16_bn(torch.nn.Module):
     def __init__(self, pretrained=True, freeze=True):
         super(vgg16_bn, self).__init__()
-        model_urls["vgg16_bn"] = model_urls["vgg16_bn"].replace("https://", "http://")
         vgg_pretrained_features = models.vgg16_bn(pretrained=pretrained).features
         self.slice1 = torch.nn.Sequential()
         self.slice2 = torch.nn.Sequential()
@@ -198,7 +190,7 @@ class CRAFT(nn.Module):
     def forward(self, x):
         """ Base network """
         if self.amp:
-            with torch.cuda.amp.autocast():
+            with autocast(enabled=config.DEVICE.type == 'cuda'):
                 sources = self.basenet(x)
 
                 """ U network """

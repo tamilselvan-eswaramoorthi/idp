@@ -2,12 +2,14 @@
 from flask import Flask
 from ocr import ocr_service
 from parser import parser_service
+from vqa import donut_service
 
 # instance of flask application
 app = Flask(__name__)
 
 app.register_blueprint(ocr_service)
 app.register_blueprint(parser_service)
+app.register_blueprint(donut_service)
 
 @app.route("/heartbeat")
 def hello_world():

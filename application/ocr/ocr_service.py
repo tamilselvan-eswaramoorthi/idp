@@ -1,7 +1,8 @@
 import os
 import fitz
 import pandas as pd
-from ocr import config
+
+import config
 from ocr.text_detector import Detector
 from ocr.text_recognizer import Recognizer
 

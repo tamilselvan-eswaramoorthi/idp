@@ -1,0 +1,48 @@
+{
+  "employee_social_security_number": "123-45-6789",
+  "employer_identification_number": "11-2233445",
+  "employer_details": {
+    "name": "Sample Company Name",
+    "address": "Sample company address, CA 45678"
+  },
+  "employee_details": {
+    "first_name": "Brandon",
+    "last_name": "Doe",
+    "address": "Sample employee address, CA 56789"
+  },
+  "wages_tips_other_compensation": 85500.00,
+  "federal_income_tax_withheld": 6835.00,
+  "social_security_wages": 50000.00,
+  "social_security_tax_withheld": 3100.00,
+  "medicare_wages_and_tips": 50000.00,
+  "medicare_tax_withheld": 725.00,
+  "dependent_care_benefits": null,
+  "nonqualified_plans": null,
+  "box_12a": {
+    "code": "D",
+    "amount": 1500.00
+  },
+  "box_12b": {
+    "code": "DD",
+    "amount": 1000.00
+  },
+  "box_12c": {
+    "code": "P",
+    "amount": 4800.00
+  },
+  "box_12d": {
+    "code": null,
+    "amount": null
+  },
+  "state_details": [
+        {
+        "state": "CA",
+        "state_id_number": 1235,
+        "state_wages_tips_etc": 50000.00,
+        "state_income_tax": 1535.00,
+        "local_wages_tips_etc": 50000.00,
+        "local_income_tax": 750.00,
+        "locality_name": "MU"
+    }
+  ]
+}

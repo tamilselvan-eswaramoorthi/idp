@@ -167,7 +167,7 @@ class Trainer(object):
                 confidence_mask_label = confidence_masks
 
                 if self.config.train.amp and str(self.device) != 'cpu':
-                    with torch.cuda.amp.autocast():
+                    with autocast(enabled=config.DEVICE.type == 'cuda'):
 
                         output, _ = craft(images)
                         out1 = output[:, :, :, 0]
