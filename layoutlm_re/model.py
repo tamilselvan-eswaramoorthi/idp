@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from transformers import LayoutLMv3Model
 import config
-from utils import get_entity_embeddings
+from utils import get_entity_embeddings, compute_variance_loss
 
 class LayoutLMv3ForRelationExtraction(nn.Module):
     def __init__(self):
@@ -23,17 +23,12 @@ class LayoutLMv3ForRelationExtraction(nn.Module):
             re_head_input_size, re_head_input_size, 1 # Output 1 logit per pair
         )
 
-        # Entity Extraction Head (Linear Classifier for IOB tags)
-        if config.USE_EEF:
-            self.linear_ee_head = nn.Linear(hidden_size, len(config.ENTITY_LABELS))
-
     def forward(self,
                 input_ids=None,
                 attention_mask=None,
                 bbox=None,
                 pixel_values=None,
                 entity_token_indices=None, # Indices of first token for each entity
-                ee_labels=None, # For EEF loss calculation
                 relation_matrix=None # For RE loss calculation
                 ):
 
@@ -41,7 +36,7 @@ class LayoutLMv3ForRelationExtraction(nn.Module):
             input_ids=input_ids,
             attention_mask=attention_mask,
             bbox=bbox,
-            pixel_values=pixel_values if config.USE_IMAGE else None,
+            pixel_values=pixel_values,
             output_hidden_states=False,
             return_dict=True
         )
@@ -74,41 +69,46 @@ class LayoutLMv3ForRelationExtraction(nn.Module):
              re_logits_flat = self.bilinear_re_head(head_embeds_flat, tail_embeds_flat).squeeze(-1)
              re_logits = re_logits_flat.reshape(batch_size, num_entities, num_entities)
 
-        # --- Entity Extraction (if enabled) ---
-        ee_logits = None
-        if config.USE_EEF:
-            ee_logits = self.linear_ee_head(sequence_output) # (batch_size, seq_len, num_ee_labels)
 
         # --- Loss Calculation ---
-        output = self.calculate_loss(re_logits, ee_logits, relation_matrix, ee_labels, num_entities)
-        return output
+        loss = self.calculate_loss(re_logits, relation_matrix, num_entities)
+        
+        # Check for NaN in loss and replace with zero if needed
+        if loss is not None and torch.isnan(loss):
+            print("Warning: NaN loss detected, setting to zero")
+            loss = torch.tensor(0.0, device=re_logits.device, requires_grad=True)
+            
+        return loss, re_logits
 
-    def calculate_loss(self, re_logits, ee_logits, relation_matrix, ee_labels, num_entities):
+    def calculate_loss(self, re_logits, relation_matrix, num_entities):
         loss = None
-        re_loss = None
-        ee_loss = None
 
         # RE Loss (Binary Cross Entropy on the matrix)
         if relation_matrix is not None:
-            loss_fct_re = nn.BCEWithLogitsLoss()
+            loss_fct_re = nn.BCEWithLogitsLoss(reduction='mean')
             # Only compute loss if num_entities > 0
             if num_entities > 0:
-                re_loss = loss_fct_re(re_logits, relation_matrix)
+                # Add a small epsilon to prevent extreme values
+                re_logits = torch.clamp(re_logits, min=-100, max=100)
+                loss = loss_fct_re(re_logits, relation_matrix)
             else:
-                re_loss = torch.tensor(0.0, device=re_logits.device) # Or handle appropriately
-            loss = re_loss
+                loss = torch.tensor(0.0, device=re_logits.device, requires_grad=True)
 
-        # EE Loss (Cross Entropy on token labels)
-        if config.USE_EEF and ee_labels is not None:
-            loss_fct_ee = nn.CrossEntropyLoss() # Ignores -100 labels
-            # Flatten logits and labels for CE loss: (batch_size * seq_len, num_labels), (batch_size * seq_len,)
-            ee_loss = loss_fct_ee(ee_logits.view(-1, len(config.ENTITY_LABELS)), ee_labels.view(-1))
-            if loss is not None:
-                loss += config.EE_LOSS_WEIGHT * ee_loss
-            else:
-                loss = config.EE_LOSS_WEIGHT * ee_loss
+        # Variance loss (RSF - Relation-Specific Features)
+        if num_entities > 1:  # Need at least 2 entities for meaningful variance
+            try:
+                re_variance_loss = compute_variance_loss(re_logits, tau=config.RSF_TAU)
+                # Check for NaN in variance loss
+                if torch.isnan(re_variance_loss):
+                    print("Warning: NaN in variance loss")
+                    re_variance_loss = torch.tensor(0.0, device=re_logits.device, requires_grad=True)
+                elif re_variance_loss > 100:  # Clip extremely large variance loss
+                    re_variance_loss = torch.tensor(100.0, device=re_logits.device, requires_grad=True)
+                    
+                if loss is not None:
+                    loss = loss + config.RSF_LOSS_WEIGHT * re_variance_loss
+            except Exception as e:
+                print(f"Error in variance loss calculation: {e}")
+                # Continue training even if variance loss fails
 
-        # TODO: Add variance loss if config.USE_RSF_LOSS is True
-
-        output = {"loss": loss, "re_loss": re_loss, "ee_loss": ee_loss, "re_logits": re_logits, "ee_logits": ee_logits}
-        return output
+        return loss

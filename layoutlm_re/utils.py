@@ -332,4 +332,25 @@ def compute_metrics(predictions, labels):
     )
     return {"precision": precision, "recall": recall, "f1": f1}
 
-# TODO: Implement compute_variance_loss if USE_RSF_LOSS is True
+def compute_variance_loss(re_logits, tau=0.1):
+    """
+    Compute variance loss with numerical stability improvements
+    """
+    # Apply sigmoid to get probabilities
+    probs = torch.sigmoid(re_logits)
+    
+    # Add small epsilon for numerical stability
+    eps = 1e-12
+    probs = torch.clamp(probs, min=eps, max=1-eps)
+    
+    # Compute variance of probabilities
+    mean_prob = torch.mean(probs, dim=[1, 2])
+    var_prob = torch.mean((probs - mean_prob.unsqueeze(1).unsqueeze(2))**2, dim=[1, 2])
+    
+    # Add smoothness factor for very small values
+    smooth_var = var_prob + eps
+    
+    # Loss is maximizing variance with a cap
+    variance_loss = -torch.mean(torch.clamp(smooth_var, max=tau))
+    
+    return variance_loss

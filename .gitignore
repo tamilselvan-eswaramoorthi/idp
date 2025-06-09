@@ -10,3 +10,5 @@ application/work_dir/data/*
 layoutlm_re/data/
 layoutlm_re/hf_cache/
 layoutlm_re/output/
+.venv/
+layoutlm_re/funsd_dataset/

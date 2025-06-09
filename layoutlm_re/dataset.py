@@ -9,11 +9,11 @@ import config
 from utils import normalize_bbox, get_entity_token_indices
 
 class VRDDataset(Dataset):
-    def __init__(self, data_path, is_train=False):
+    def __init__(self, data_path, img_path, is_train=False):
         self.tokenizer = LayoutLMv3TokenizerFast.from_pretrained(config.MODEL_NAME, cache_dir=config.CACHE_DIR)
         self.image_processor = LayoutLMv3ImageProcessor(apply_ocr=False) # OCR is done externally
-        self.image_dir = config.IMAGE_DIR
         self.max_length = config.MAX_LENGTH
+        self.image_path = img_path
         self.is_train = is_train
         self.pad_token_box = [0, 0, 0, 0]
 
@@ -28,7 +28,7 @@ class VRDDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.data[idx]
-        image_path = os.path.join(self.image_dir, sample['image_path'])
+        image_path = os.path.join(self.image_path, 'images', sample['image_path'])
         image = Image.open(image_path).convert("RGB")
         width, height = image.size
 
@@ -36,9 +36,42 @@ class VRDDataset(Dataset):
         words = sample['words']
         unnormalized_boxes = sample['bboxes']
 
-        if config.USE_BBO:
-            # ... (your BBO logic - ensure entities/relations are pre-adjusted in data)
-            pass
+        # BBO (Bounding Box Optimization
+        # Merge bounding boxes for each entity span and assign to its tokens
+        merged_boxes = unnormalized_boxes.copy()
+        
+        # Collect entity spans from the data
+        entity_spans = []
+        for entity in sample['entities']:
+            if 'span' in entity:
+                start, end = entity['span']
+                entity_spans.append((start, end))
+        
+        # Process each entity span
+        for start, end in entity_spans:
+            if start >= len(unnormalized_boxes) or end >= len(unnormalized_boxes):
+                continue
+            
+            # Extract boxes for the entity span
+            entity_boxes = unnormalized_boxes[start:end+1]
+            
+            if not entity_boxes:
+                continue
+            
+            # Compute merged bounding box (min_x, min_y, max_x, max_y)
+            min_x = min(box[0] for box in entity_boxes)
+            min_y = min(box[1] for box in entity_boxes)
+            max_x = max(box[2] for box in entity_boxes)
+            max_y = max(box[3] for box in entity_boxes)
+            
+            merged_box = [min_x, min_y, max_x, max_y]
+            
+            # Assign merged box to all tokens in the span
+            for i in range(start, end + 1):
+                merged_boxes[i] = merged_box
+        
+        # Use the boxes with BBO applied
+        unnormalized_boxes = merged_boxes
 
         normalized_boxes = [normalize_bbox(box, width, height) for box in unnormalized_boxes]
 
@@ -55,62 +88,60 @@ class VRDDataset(Dataset):
         num_actual_entities_to_process = len(entities) # This will be <= config.MAX_ENTITIES
 
         entity_word_indices = [e['span'] for e in entities]
-        entity_labels = [e['label'] for e in entities] # For EEF
 
-        if config.USE_EM:
-            # ... (your EM logic)
-            # Make sure entity_word_indices are updated correctly AFTER potential entity truncation
-            # This part might need careful re-evaluation if EM relies on original_entities indices
-            # For simplicity, assume entity_word_indices are based on the (potentially truncated) `entities` list
-            original_word_count = len(words)
-            new_words = []
-            new_boxes = []
-            word_idx_map_for_em = {}
-            current_new_idx = 0
 
-            # Rebuild entity_starts based on the (potentially truncated) `entities` list
-            entity_starts = {e['span'][0]: e['label'] for e in entities}
+        # Make sure entity_word_indices are updated correctly AFTER potential entity truncation
+        # This part might need careful re-evaluation if EM relies on original_entities indices
+        # For simplicity, assume entity_word_indices are based on the (potentially truncated) `entities` list
+        original_word_count = len(words)
+        new_words = []
+        new_boxes = []
+        word_idx_map_for_em = {}
+        current_new_idx = 0
 
-            for i in range(original_word_count):
-                marker_insertion_point = current_new_idx
-                if i in entity_starts:
-                    entity_type = entity_starts[i].lower().replace("-", "_")
-                    new_words.append(entity_type)
-                    new_boxes.append(normalized_boxes[i])
-                    current_new_idx += 1
-                
-                word_insertion_point = current_new_idx
-                new_words.append(words[i])
+        # Rebuild entity_starts based on the (potentially truncated) `entities` list
+        entity_starts = {e['span'][0]: e['label'] for e in entities}
+
+        for i in range(original_word_count):
+            marker_insertion_point = current_new_idx
+            if i in entity_starts:
+                entity_type = entity_starts[i].lower().replace("-", "_")
+                new_words.append(entity_type)
                 new_boxes.append(normalized_boxes[i])
                 current_new_idx += 1
-                word_idx_map_for_em[i] = [marker_insertion_point, word_insertion_point, current_new_idx]
+            
+            word_insertion_point = current_new_idx
+            new_words.append(words[i])
+            new_boxes.append(normalized_boxes[i])
+            current_new_idx += 1
+            word_idx_map_for_em[i] = [marker_insertion_point, word_insertion_point, current_new_idx]
 
-            words = new_words
-            normalized_boxes = new_boxes
+        words = new_words
+        normalized_boxes = new_boxes
 
-            updated_entity_word_indices = []
-            for ent_idx in range(num_actual_entities_to_process): # Iterate over (truncated) entities
-                original_span_start, original_span_end = entities[ent_idx]['span'] # Use span from current entity
-                # Ensure original_span_start and original_span_end are valid keys for word_idx_map_for_em
-                # This implies that the spans in `entities` are still valid indices for the original `words` list
-                # before EM modification. This is a critical assumption.
-                if original_span_start in word_idx_map_for_em and original_span_end in word_idx_map_for_em:
-                    new_word_span_start = word_idx_map_for_em[original_span_start][1]
-                    new_word_span_end = word_idx_map_for_em[original_span_end][1]
-                    updated_entity_word_indices.append([new_word_span_start, new_word_span_end])
-                else:
-                    # This case should be handled: what if an entity's span is outside the original words?
-                    # Or if an entity was truncated and its original span is no longer relevant.
-                    # For now, we might skip this entity or add a placeholder.
-                    # Let's assume for now that spans are valid for words before EM.
-                    print(f"Warning: Entity span issue during EM for sample {idx}, entity {ent_idx}. Skipping this entity's span update.")
-                    # Potentially add a dummy span or handle this error. For now, this might lead to fewer entity spans.
-                    pass # This could lead to a mismatch later if not handled robustly
+        updated_entity_word_indices = []
+        for ent_idx in range(num_actual_entities_to_process): # Iterate over (truncated) entities
+            original_span_start, original_span_end = entities[ent_idx]['span'] # Use span from current entity
+            # Ensure original_span_start and original_span_end are valid keys for word_idx_map_for_em
+            # This implies that the spans in `entities` are still valid indices for the original `words` list
+            # before EM modification. This is a critical assumption.
+            if original_span_start in word_idx_map_for_em and original_span_end in word_idx_map_for_em:
+                new_word_span_start = word_idx_map_for_em[original_span_start][1]
+                new_word_span_end = word_idx_map_for_em[original_span_end][1]
+                updated_entity_word_indices.append([new_word_span_start, new_word_span_end])
+            else:
+                # This case should be handled: what if an entity's span is outside the original words?
+                # Or if an entity was truncated and its original span is no longer relevant.
+                # For now, we might skip this entity or add a placeholder.
+                # Let's assume for now that spans are valid for words before EM.
+                print(f"Warning: Entity span issue during EM for sample {idx}, entity {ent_idx}. Skipping this entity's span update.")
+                # Potentially add a dummy span or handle this error. For now, this might lead to fewer entity spans.
+                pass # This could lead to a mismatch later if not handled robustly
 
-            entity_word_indices = updated_entity_word_indices
-            # After EM, entity_labels should still correspond to the entities in the (truncated) `entities` list
-            # and entity_word_indices should also correspond one-to-one with this list.
-            # Ensure len(entity_word_indices) == num_actual_entities_to_process
+        entity_word_indices = updated_entity_word_indices
+        # After EM, entity_labels should still correspond to the entities in the (truncated) `entities` list
+        # and entity_word_indices should also correspond one-to-one with this list.
+        # Ensure len(entity_word_indices) == num_actual_entities_to_process
 
 
         encoding = self.tokenizer(
@@ -177,70 +208,8 @@ class VRDDataset(Dataset):
         
         encoding['entity_token_indices'] = padded_entity_token_indices
 
-        # --- EE Labels (if EEF) ---
-        if config.USE_EEF:
-            ee_labels = torch.full((self.max_length,), -100, dtype=torch.long) # -100 is CrossEntropyLoss ignore_index
-            previous_word_idx = None
-            
-            # entity_labels and entity_word_indices should be from the (truncated) `entities` list
-            for token_idx, current_word_id in enumerate(word_ids):
-                if current_word_id is None:
-                    ee_labels[token_idx] = -100
-                    continue
-                
-                is_first_token_of_word = (current_word_id != previous_word_idx)
-                label_str = "O"
-
-                # Iterate through the (truncated and EM-mapped) entity_word_indices
-                for ent_idx in range(len(entity_word_indices)): # Use len(entity_word_indices) which should be consistent
-                    ent_start_word_idx, ent_end_word_idx = entity_word_indices[ent_idx]
-                    if ent_start_word_idx <= current_word_id <= ent_end_word_idx:
-                        # Get base_label corresponding to this entity
-                        # entity_labels should have the same length as entities (and entity_word_indices after EM)
-                        base_label = entity_labels[ent_idx]
-                        if is_first_token_of_word and current_word_id == ent_start_word_idx:
-                            label_str = f"B-{base_label}"
-                        else:
-                            label_str = f"I-{base_label}"
-                        break
-                
-                if is_first_token_of_word:
-                    ee_labels[token_idx] = config.LABEL_TO_ID.get(label_str, config.LABEL_TO_ID["O"])
-                else:
-                    prev_token_label_id = ee_labels[token_idx-1].item() # ee_labels[token_idx-1] is already a tensor
-                    if prev_token_label_id != -100:
-                        prev_label_str_full = config.ID_TO_LABEL[prev_token_label_id]
-                        if prev_label_str_full.startswith("B-"):
-                            current_actual_label = f"I-{prev_label_str_full[2:]}"
-                            ee_labels[token_idx] = config.LABEL_TO_ID.get(current_actual_label, config.LABEL_TO_ID["O"])
-                        elif prev_label_str_full.startswith("I-"):
-                            ee_labels[token_idx] = config.LABEL_TO_ID.get(prev_label_str_full, config.LABEL_TO_ID["O"])
-                        else: # Was "O"
-                            ee_labels[token_idx] = config.LABEL_TO_ID["O"]
-                    else: # Previous token was special token
-                        ee_labels[token_idx] = config.LABEL_TO_ID["O"] # Should ideally be -100 if prev was special
-                previous_word_idx = current_word_id
-            encoding['ee_labels'] = ee_labels
-
-
         final_encoding = {k: v.squeeze(0) if isinstance(v, torch.Tensor) and v.dim() > 0 and v.shape[0] == 1 else v for k, v in encoding.items()}
         final_encoding['image_size'] = torch.tensor([width, height], dtype=torch.long)
         final_encoding['num_entities'] = num_actual_entities_to_process # Store the *actual* number of entities processed
 
         return final_encoding
-
-# collate_fn_bbs remains the same
-def collate_fn_bbs(batch):
-    from torch.utils.data.dataloader import default_collate
-    # Filter out None items if any __getitem__ failed and returned None
-    # batch = [b for b in batch if b is not None]
-    # if not batch:
-    #     return None # Or handle as an error / empty batch
-    processed_batch = default_collate(batch)
-
-    if config.USE_BBS and len(batch) > 0 and processed_batch['input_ids'].shape[0] > 1:
-        batch_size = processed_batch['input_ids'].shape[0]
-        perm = torch.randperm(batch_size)
-        shuffled_bboxes = processed_batch['bbox'][perm]
-        processed_batch['bbox'] = shuffled_bboxes
-    return processed_batch

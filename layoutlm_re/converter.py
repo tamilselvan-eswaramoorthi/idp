@@ -1,8 +1,11 @@
 import json
-import os, re
+import os
+import re
+import numpy as np
+from pathlib import Path
 from tqdm import tqdm
-
-import config
+import matplotlib.pyplot as plt
+from collections import Counter
 
 def validate_jsonl_file(jsonl_path):
     """
@@ -14,6 +17,7 @@ def validate_jsonl_file(jsonl_path):
     Returns:
         bool: True if validation passes, False otherwise
     """
+    print(f"Validating {jsonl_path}...")
     
     required_fields = ['words', 'bboxes', 'entities']
     optional_fields = ['image_path', 'relations', 'id']
@@ -106,14 +110,30 @@ def validate_jsonl_file(jsonl_path):
     else:
         print(f"\nValidation failed with {len(errors)} errors.")
         return False
+
+def normalize_text(text):
+    """
+    Normalize text for more consistent processing.
     
-def convert_funsd_to_jsonl(funsd_json_path):
+    Args:
+        text (str): Input text string
+        
+    Returns:
+        str: Normalized text
+    """
+    # Replace multiple spaces, tabs, newlines with single space
+    text = re.sub(r'\s+', ' ', text)
+    # Remove leading/trailing spaces
+    text = text.strip()
+    return text
+
+def convert_funsd_to_jsonl(funsd_json_path, image_path_prefix=None):
     """
     Converts a single FUNSD JSON annotation file to a JSONL-compatible dictionary.
-    Improved with better text normalization and entity handling.
 
     Args:
         funsd_json_path (str): The path to the FUNSD JSON file.
+        image_path_prefix (str, optional): Prefix for image path. If None, just use filename.
 
     Returns:
         dict: A dictionary structured for the VRDDataset.
@@ -121,145 +141,364 @@ def convert_funsd_to_jsonl(funsd_json_path):
     with open(funsd_json_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
+    doc_id = Path(funsd_json_path).stem
+    image_filename = f"{doc_id}.png"
+    
     all_words = []
     all_bboxes = []
-    entity_id_map = {}
-    relation_pairs = set()
+    all_ner_tags = []
     word_counter = 0
+    entity_data = []
+    funsd_id_to_entity_data = {}
     
-    # Improved text normalization
-    def normalize_text(text):
-        """Normalize text for more consistent processing"""
-        # Replace multiple spaces, tabs, newlines with single space
-        text = re.sub(r'\s+', ' ', text)
-        # Remove leading/trailing spaces
-        text = text.strip()
-        return text
-
-    # Process blocks with better handling of empty/invalid cases
-    for block in data['form']:
-        if not block.get('words') or not (block['words'] and block['words'][0].get('text')):
+    # First pass: Process all annotations to gather words, bboxes, and create entities
+    for ann_idx, annotation in enumerate(data['form']):
+        if not all(k in annotation for k in ['id', 'text', 'box', 'label', 'words']):
+            print(f"Warning: Skipping malformed annotation (missing keys) in {funsd_json_path}, index {ann_idx}")
             continue
-
-        # Verify bounding boxes are valid
+            
+        entity_label = annotation['label'].upper() if annotation.get('label') else "OTHER"
+        original_funsd_id = annotation['id']
+        
+        # Skip 'other' labels if we want to follow converter.py's approach
+        # if entity_label == "OTHER":
+        #    continue
+        
+        # Process words with text normalization
         valid_words = []
-        for word_info in block['words']:
-            if not (isinstance(word_info.get('box'), list) and len(word_info.get('box')) == 4):
-                continue
-                
-            # Normalize text to handle OCR inconsistencies
-            word_info['text'] = normalize_text(word_info['text'])
-            if word_info['text']:  # Skip empty strings after normalization
-                valid_words.append(word_info)
-                
+        valid_boxes = []
+        
+        if annotation['words']:
+            for word_info in annotation['words']:
+                if not all(k in word_info for k in ['text', 'box']):
+                    continue
+                    
+                normalized_text = normalize_text(word_info['text'])
+                if normalized_text:  # Skip empty strings after normalization
+                    valid_words.append(normalized_text)
+                    # Ensure bounding box coordinates are integers
+                    valid_boxes.append([int(coord) for coord in word_info['box']])
+        
+        # Skip entities with no valid words
         if not valid_words:
             continue
+            
+        entity_start_word_idx = word_counter
+        
+        # Add words to the global list
+        for i, (word, box) in enumerate(zip(valid_words, valid_boxes)):
+            all_words.append(word)
+            all_bboxes.append(box)
+            
+            # Add BIO tags for NER (from create_dataset.py)
+            bio_label = entity_label
+            if i == 0: 
+                all_ner_tags.append(f"B-{bio_label}")
+            else: 
+                all_ner_tags.append(f"I-{bio_label}")
                 
-        start_word_idx = word_counter
-        for word_info in valid_words:
-            all_words.append(word_info['text'])
-            # Ensure bounding box coordinates are integers
-            all_bboxes.append([int(coord) for coord in word_info['box']])
             word_counter += 1
-        end_word_idx = word_counter - 1
+            
+        entity_end_word_idx = word_counter - 1
+        
+        # Store entity data with position information for sorting
+        y_pos = annotation['box'][1] if annotation.get('box') else valid_boxes[0][1]
+        x_pos = annotation['box'][0] if annotation.get('box') else valid_boxes[0][0]
+        
+        entity_info = {
+            "original_funsd_id": original_funsd_id,
+            "text": normalize_text(annotation['text']),
+            "label": entity_label,
+            "span": [entity_start_word_idx, entity_end_word_idx],
+            "box": annotation['box'],
+            "position": (y_pos, x_pos)  # For sorting by position
+        }
+        
+        entity_data.append(entity_info)
+        funsd_id_to_entity_data[original_funsd_id] = entity_info
 
-        if block['label'] != 'other':
-            entity_id_map[block['id']] = {
-                'id': block['id'],
-                'label': block['label'],
-                'span': [start_word_idx, end_word_idx]
-            }
-
-        for head, tail in block.get('linking', []):
-            # Sort to ensure consistent handling regardless of order
-            relation_pairs.add(tuple(sorted((head, tail))))
-
-    final_entities = []
-    old_id_to_new_idx = {}
-    
     # Sort entities by position (top to bottom, left to right)
-    entity_list = sorted(entity_id_map.values(), key=lambda x: (
-        all_bboxes[x['span'][0]][1],  # y coordinate of first word
-        all_bboxes[x['span'][0]][0]   # x coordinate of first word
-    ))
+    sorted_entities = sorted(entity_data, key=lambda x: x["position"])
     
-    for i, entity_info in enumerate(entity_list):
-        old_id_to_new_idx[entity_info['id']] = i
+    # Create final entities with sequential IDs
+    final_entities = []
+    funsd_id_to_sequential_id = {}
+    
+    for idx, entity_info in enumerate(sorted_entities):
+        funsd_id_to_sequential_id[entity_info["original_funsd_id"]] = idx
+        
         final_entities.append({
-            'id': i,
-            'span': entity_info['span'],
-            'label': entity_info['label']
+            "id": idx,
+            "original_funsd_id": entity_info["original_funsd_id"],
+            "label": entity_info["label"],
+            "span": entity_info["span"], 
+            "text": entity_info["text"],
+            "box": entity_info["box"]
         })
 
-    final_relations = []
-    for head_id, tail_id in relation_pairs:
-        if head_id in old_id_to_new_idx and tail_id in old_id_to_new_idx:
-            new_head_idx = old_id_to_new_idx[head_id]
-            new_tail_idx = old_id_to_new_idx[tail_id]
-            final_relations.append({
-                'head': new_head_idx,
-                'tail': new_tail_idx,
-                'label': 'LINK'
-            })
-
-    image_filename = os.path.basename(funsd_json_path).replace('.json', '.png')
+    # Process relations
+    relations = []
+    relation_pairs = set()  # To track unique pairs (optional)
     
+    for annotation in data['form']:
+        if 'id' not in annotation or 'linking' not in annotation:
+            continue
+            
+        current_funsd_id = annotation['id']
+        if current_funsd_id not in funsd_id_to_sequential_id:
+            continue
+            
+        for link_pair in annotation['linking']:
+            if len(link_pair) != 2:
+                print(f"Warning: Malformed link pair {link_pair} in {funsd_json_path} for annotation ID {current_funsd_id}. Skipping.")
+                continue
+                
+            funsd_head_id, funsd_tail_id = link_pair
+            
+            if funsd_head_id not in funsd_id_to_sequential_id or funsd_tail_id not in funsd_id_to_sequential_id:
+                continue
+                
+            head_id = funsd_id_to_sequential_id[funsd_head_id]
+            tail_id = funsd_id_to_sequential_id[funsd_tail_id]
+            
+            # Optionally check for and skip duplicate relations
+            relation_key = (head_id, tail_id)
+            if relation_key in relation_pairs:
+                continue
+                
+            relation_pairs.add(relation_key)
+            
+            relations.append({
+                "head": head_id,
+                "tail": tail_id,
+                "label": "LINK"
+            })
+    
+    # Create image path
+    if image_path_prefix:
+        image_path = str(Path(image_path_prefix) / image_filename)
+    else:
+        image_path = image_filename
+        
     output_dict = {
-        "image_path": image_filename,
+        "id": doc_id,
+        "image_path": image_path,
         "words": all_words,
         "bboxes": all_bboxes,
+        "ner_tags": all_ner_tags,
         "entities": final_entities,
-        "relations": final_relations
+        "relations": relations
     }
     
     return output_dict
 
-def main():
-    for base_dir in [config.TRAIN_PATH, config.VAL_PATH]:
-        funsd_dir = os.path.join(base_dir, 'annotations')
-        output_file = os.path.join(base_dir, 'data.jsonl')
-        if 'train' in base_dir:
-            config.TRAIN_DATA_PATH = output_file
-            print (f"Converting FUNSD training data from {funsd_dir} to {output_file}")
-        else:
-            config.VAL_DATA_PATH = output_file
-            print (f"Converting FUNSD validation data from {funsd_dir} to {output_file}")
-
-
-        if not os.path.isdir(funsd_dir):
-            print(f"Error: Directory not found at {funsd_dir}")
-            return
-
-        json_files = [f for f in os.listdir(funsd_dir) if f.endswith('.json')]
+def analyze_jsonl_data(jsonl_path):
+    """
+    Analyzes a JSONL file containing document relation data.
+    
+    Args:
+        jsonl_path: Path to the JSONL file
+    """
+    print(f"Analyzing data in {jsonl_path}")
+    
+    # Stats to collect
+    num_samples = 0
+    num_words_list = []
+    num_entities_list = []
+    num_relations_list = []
+    entity_labels = Counter()
+    relation_labels = Counter()
+    
+    # Load and analyze each sample
+    with open(jsonl_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            try:
+                sample = json.loads(line.strip())
+                num_samples += 1
+                
+                # Word stats
+                words = sample.get('words', [])
+                num_words_list.append(len(words))
+                
+                # Entity stats
+                entities = sample.get('entities', [])
+                num_entities_list.append(len(entities))
+                
+                # Collect entity labels if available
+                for entity in entities:
+                    if 'label' in entity:
+                        entity_labels[entity['label']] += 1
+                
+                # Relation stats
+                relations = sample.get('relations', [])
+                num_relations_list.append(len(relations))
+                
+                # Collect relation labels
+                for relation in relations:
+                    if 'label' in relation:
+                        relation_labels[relation['label']] += 1
+            
+            except json.JSONDecodeError:
+                print(f"Error: Could not parse a line in {jsonl_path}")
+            except Exception as e:
+                print(f"Error processing line: {e}")
+    
+    # Calculate statistics
+    print(f"\nTotal samples: {num_samples}")
+    
+    if num_words_list:
+        print(f"\nWord statistics:")
+        print(f"  Min words per sample: {min(num_words_list)}")
+        print(f"  Max words per sample: {max(num_words_list)}")
+        print(f"  Avg words per sample: {sum(num_words_list) / len(num_words_list):.2f}")
+    
+    if num_entities_list:
+        print(f"\nEntity statistics:")
+        print(f"  Min entities per sample: {min(num_entities_list)}")
+        print(f"  Max entities per sample: {max(num_entities_list)}")
+        print(f"  Avg entities per sample: {sum(num_entities_list) / len(num_entities_list):.2f}")
+        print(f"  Total entities: {sum(num_entities_list)}")
         
-        if not json_files:
-            print(f"No JSON files found in {funsd_dir}")
-            return
+        print("\nEntity label distribution:")
+        for label, count in entity_labels.most_common():
+            print(f"  {label}: {count} ({count / sum(entity_labels.values()) * 100:.1f}%)")
+    
+    if num_relations_list:
+        print(f"\nRelation statistics:")
+        print(f"  Min relations per sample: {min(num_relations_list)}")
+        print(f"  Max relations per sample: {max(num_relations_list)}")
+        print(f"  Avg relations per sample: {sum(num_relations_list) / len(num_relations_list):.2f}")
+        print(f"  Total relations: {sum(num_relations_list)}")
+        
+        print("\nRelation label distribution:")
+        for label, count in relation_labels.most_common():
+            print(f"  {label}: {count} ({count / sum(relation_labels.values()) * 100:.1f}%)")
+    
+    # Plot histograms if there's data
+    if num_entities_list and num_relations_list:
+        plt.figure(figsize=(15, 5))
+        
+        plt.subplot(1, 3, 1)
+        plt.hist(num_words_list, bins=20)
+        plt.title('Words per Sample')
+        plt.xlabel('Number of Words')
+        plt.ylabel('Frequency')
+        
+        plt.subplot(1, 3, 2)
+        plt.hist(num_entities_list, bins=max(10, max(num_entities_list)))
+        plt.title('Entities per Sample')
+        plt.xlabel('Number of Entities')
+        plt.ylabel('Frequency')
+        
+        plt.subplot(1, 3, 3)
+        plt.hist(num_relations_list, bins=max(10, max(num_relations_list)))
+        plt.title('Relations per Sample')
+        plt.xlabel('Number of Relations')
+        plt.ylabel('Frequency')
+        
+        plt.tight_layout()
+        
+        # Save plot
+        os.makedirs('plots', exist_ok=True)
+        if 'train' in jsonl_path:
+            plot_name = 'train_stats.png'
+        elif 'test' in jsonl_path:
+            plot_name = 'test_stats.png'
+        plot_path = os.path.join('plots', plot_name)
+        plt.savefig(plot_path)
+        print(f"\nPlot saved to {plot_path}")
+        plt.close()
+        
+    return {
+        'num_samples': num_samples,
+        'num_entities': sum(num_entities_list),
+        'num_relations': sum(num_relations_list),
+        'entity_labels': entity_labels,
+        'relation_labels': relation_labels
+    }
 
-        print(f"Found {len(json_files)} JSON files. Starting conversion...")
 
-        successful_conversions = 0
-        total_entities = 0
-        total_relations = 0
+def process_funsd_split(funsd_root_dir, split_name, output_dir, include_image_prefix=True):
+    """
+    Processes a split of the FUNSD dataset.
 
-        with open(output_file, 'w', encoding='utf-8') as outfile:
-            for filename in tqdm(json_files, desc="Converting files"):
-                json_path = os.path.join(funsd_dir, filename)
-                try:
-                    converted_data = convert_funsd_to_jsonl(json_path)
+    Args:
+        funsd_root_dir (str): Path to the root directory of FUNSD.
+        split_name (str): "training_data" or "testing_data".
+        output_dir (str): Directory to save output JSONL.
+        include_image_prefix (bool): Whether to include split name in image paths.
+    """
+    annotations_dir = os.path.join(funsd_root_dir, split_name, "annotations")
+    
+    if not os.path.isdir(annotations_dir):
+        print(f"Error: Annotation directory not found: {annotations_dir}")
+        return
+        
+    output_filename = "train.jsonl" if "train" in split_name.lower() else "test.jsonl"
+    output_file_path = os.path.join(output_dir, output_filename)
+    
+    # Create image path prefix based on configuration
+    image_path_prefix = f"{split_name}/images" if include_image_prefix else None
+    
+    json_files = sorted([f for f in os.listdir(annotations_dir) if f.endswith('.json')])
+    
+    if not json_files:
+        print(f"Warning: No JSON files found in {annotations_dir}")
+        return
+        
+    print(f"Processing {len(json_files)} files from {split_name}...")
+    
+    successful_conversions = 0
+    total_entities = 0
+    total_relations = 0
+    
+    with open(output_file_path, 'w', encoding='utf-8') as outfile:
+        for filename in tqdm(json_files, desc=f"Converting {split_name}"):
+            json_path = os.path.join(annotations_dir, filename)
+            try:
+                converted_data = convert_funsd_to_jsonl(json_path, image_path_prefix)
+                if converted_data:
                     outfile.write(json.dumps(converted_data) + '\n')
                     successful_conversions += 1
                     total_entities += len(converted_data.get('entities', []))
                     total_relations += len(converted_data.get('relations', []))
-                except Exception as e:
-                    print(f"Error processing {filename}: {e}")
+            except Exception as e:
+                print(f"Error processing {filename}: {e}")
+                
+    print(f"Successfully processed {successful_conversions} out of {len(json_files)} files from {split_name}")
+    print(f"Total entities: {total_entities}, total relations: {total_relations}")
+    print(f"Output saved to {output_file_path}")
+    
+    if successful_conversions > 0:
+        validate_jsonl_file(output_file_path)
+    
+    # Analyze the output JSONL file
+    analyze_jsonl_data(output_file_path)
+    return output_file_path
 
-        print(f"Conversion complete. Successfully converted {successful_conversions} out of {len(json_files)} files.")
-        print(f"Total entities: {total_entities}, total relations: {total_relations}")
-        
-        if successful_conversions > 0:
-            validate_jsonl_file(output_file)
-        print ('-'*50 + '\n')
+def main():
+    # Set up paths
+    funsd_root_dir = 'funsd_dataset'  # Update with your actual path
+    output_dir = 'data'  # Update with your desired output directory
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Process training data
+    print("\n" + "="*50)
+    print("Processing FUNSD training data...")
+    train_output = process_funsd_split(funsd_root_dir, "training_data", output_dir)
+    
+    # Process testing data
+    print("\n" + "="*50)
+    print("Processing FUNSD testing data...")
+    test_output = process_funsd_split(funsd_root_dir, "testing_data", output_dir)
+    
+    print("\n" + "="*50)
+    print("Dataset conversion complete!")
+    print(f"Training data: {train_output}")
+    print(f"Testing data: {test_output}")
+    print("="*50)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
